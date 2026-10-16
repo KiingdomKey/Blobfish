@@ -3,7 +3,7 @@ Currently, the reward function is implemented as a modified Monte Carlo Tree Sea
 The main change is that, instead of doing a rollout on a new state, we have the model predict the value of the state.
 If the state is a terminal state, however, it does get the ground-truth value of the state (i.e. win/loss/draw)
 
-Expect any of this to change...
+Note: all of this is subject to change and is me wanting to mess around with stuff.
 
 Ideas for future:
     Found a paper on combining MCTS with Minimax, could help with not missing specific short-term moves (need to do more research)
