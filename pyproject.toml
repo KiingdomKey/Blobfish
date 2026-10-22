@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blobfish"
+version = "0.1.0"
+description = "Chess agent trained through self-play with MCTS and Actor-Critic reinforcement learning"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "lightning",
+    "chess",
+    "pyffish",
+    "numpy",
+]
+
+[project.optional-dependencies]
+bench = [
+    "torchinfo",
+    "pandas",
+    "matplotlib",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
