@@ -17,7 +17,7 @@ TODO:
 from dataclasses import dataclass, field
 import random
 
-import chess
+import pyffish as pf
 import numpy as np
 import torch
 
@@ -28,10 +28,12 @@ from threading import Lock, Event
 import sys
 import time
 
+from pyffish_node import PyffishNode
+
 print("GIL enabled: ", sys._is_gil_enabled())
 
 
-NUM_THREADS = 64
+NUM_THREADS = 16
 BATCHING = True
 
 
@@ -69,60 +71,6 @@ def get_active_workers() -> int:
     return threading.active_count() - 2 # -2 is for the processing thread and the main thread
 
 
-def UCB(T_child: float,
-        c: float,
-        n_parent: int,
-        n_child: int) -> float:
-    """
-    Calculates the Upper Confidence Bound (UCB) value for the given inputs
-
-    Args:
-        T_child:    T value (the total sum of values of explored children)
-        C:          exploration constant
-        n_parent:   number of times the parent has been visited
-        n_child:    number of times the child has been visited
-    
-    Returns:
-        UCB value given the above arguments. Returns infinity if the child has never been explored
-    """
-
-    if n_child == 0:
-        return float('inf')
-    else:
-        return (T_child / n_child) + c * np.sqrt(np.log(n_parent) / n_child) 
-
-@dataclass
-class Node:
-    '''
-    Dataclass for a node in the tree. Most members self-explanatory, but:
-    
-    Data members:
-        state:              current board state
-        parent:             reference to parent node (we need to be able to backtrack up the tree for backpropagation)
-        children:           list of all children nodes
-        total_value:       total value of itself plus (explored) children
-        visits:             number of visits to this node
-        depth:              depth of node (not actually needed by algortihm, it's just here for testing purposes)   
-
-    '''
-    state: chess.Board
-    parent: "Node" = None
-    children: list["Node"] = field(default_factory=list) # Equivalent to a default value of [] (empty list). Can't do it normally in a dataclass
-    total_value: int = 0
-    visits: int = 0
-    depth: int = 0
-
-    # Is here to make it easier to change out our MCTS metric (just have to replace the contents of this function)
-    def mcts_metric(self):
-        return UCB(T_child=self.total_value, c=2, n_parent=self.parent.visits, n_child=self.visits)
-
-    # Here to be able to sort our nodes by metric value
-    def __lt__(self, rhs):
-        return self.mcts_metric() < rhs.mcts_metric()
-
-    def __float__(self):
-        return self.total_value / self.visits if self.visits > 0 else 0
-
 def backprop(node: Node, value) -> None:
     """
     Performs MCTS backpropagation from the current node.
@@ -136,11 +84,9 @@ def backprop(node: Node, value) -> None:
     """
 
     cur = node
-    #print("doing backprop")
     while cur:
         cur.total_value += value
         cur.visits += 1
-        #print(f"-Node at depth={cur.depth} now has T={cur.total_value}. Avg. value = {cur.total_value / cur.visits}")
         cur = cur.parent
 
 
@@ -157,8 +103,8 @@ class Agent():
 
 
 
-def mcts(player_color: chess.Color,
-         start_state: chess.Board, 
+def mcts(root: Node,
+         game: str,
          num_runs: int,
          player: Agent = None,
          thread_num: int = None,
@@ -177,51 +123,35 @@ def mcts(player_color: chess.Color,
 
     global num_threads_done_processing, num_threads_alive, num_threads_done_waiting
 
-    root = Node(start_state)
-    black_turn = False if player_color == chess.WHITE else True
-
     for i in range(0, num_runs):
         cur = root
-
         # Get to a leaf node (if we're not already at one)
+
         while len(cur.children) != 0:
-            
             # Pick child with highest metric value
             cur.children.sort()
             cur = cur.children[-1]
-
-            black_turn = not black_turn
-
-        # We've been to this leaf at least once, so add its children and do backprop on its first child (we haven't evaluate the children, so it's ok to pick a random child)
-        if cur.visits > 0:
-            
-            #print("Been to this leaf already, adding new states")
-            for action in cur.state.legal_moves:
-
-                child = cur.state.copy()
-                child.push_san(str(action)) 
-                cur.children.append(Node(state=child, parent=cur, depth=cur.depth + 1))
-
-            cur = cur.children[random.randint(0, len(cur.children) - 1)]
-
         
+        # We've been to this leaf at least once, so add its children and do backprop on its first child (we haven't evaluate the children, so it's ok to pick a random child)
+        if cur.visits == 1:
+           # print(cur)
+            cur.add_successors()
+            cur = cur.children[0]
+
         # If this state is a terminal state, get ground-truth value
-        if cur.state.is_game_over():
-            outcome = cur.state.outcome()
-            if not outcome:
-                value = 0
-            else:
-                value = 1 if outcome.winner == player_color else -1
+        result = cur.is_terminal()
+        if result is not None:
+            value = result
         # Non-terminal state, so get estimation of the state's value
         else:
-            value = get_value(thread_num, cur) if batching else 1
-
-
+            value = get_value(thread_num, cur) if batching else random.uniform(-5, 5)
+        
         backprop(cur, value)
+
 
     # Find which action leads to the best immediate child
     idx = np.argmax(root.children)
-    best_action = root.children[idx].state.peek()
+    best_action = root.children[idx].action
 
     # Clean up if batching
     if batching:
@@ -234,10 +164,7 @@ def mcts(player_color: chess.Color,
                     # 2. If all threads have ended their search, we have to make sure the processing loop doesn't get stuck if it's already waiting
                 if (num_threads_alive == num_threads_done_processing) or (num_threads_alive == 0):
                     ready_to_process.set()
-                    
     return best_action, value
-
-
 
 
 def get_value(thread_num: int, state) -> float:
@@ -314,17 +241,29 @@ def process_batch_loop(player: Agent) -> None:
 
 
 if __name__ == "__main__":
-    board = chess.Board()
+    game = "gardner"
+    start = pf.start_fen(game)
+    root = PyffishNode(state=start, game=game)
+
     p1 = Agent(50)
 
-    start_time = time.time()
 
+    start_time = time.time()
+    mcts(root=root, game=game, num_runs=500, thread_num=0, batching=False)
+
+
+    ''' don't run with pyffish nodes
     with ThreadPoolExecutor(max_workers=NUM_THREADS + 1) as executor:
-        executor.submit(process_batch_loop, p1)
+        # executor.submit(process_batch_loop, p1)
         for i in range(NUM_THREADS):
-            executor.submit(mcts, player_color=chess.WHITE, start_state=board.copy(), num_runs=500, thread_num=i, batching=BATCHING)
+            a = start[:]
+            b = game[:]
+
+            executor.submit(mcts, start_state=a, game=b, num_runs=50, thread_num=i, batching=False)
+    '''
 
 
     print("time: ", time.time() - start_time)
+
             
 
