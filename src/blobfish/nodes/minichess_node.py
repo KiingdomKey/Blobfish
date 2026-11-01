@@ -1,4 +1,4 @@
-from base_node import Node
+from nodes.base_node import Node
 
 import minichess.fastchess
 from minichess.chess_helpers import get_initial_chess_object

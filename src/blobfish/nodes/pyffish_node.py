@@ -1,4 +1,4 @@
-from base_node import Node
+from nodes.base_node import Node
 
 import pyffish as pf
 
@@ -28,7 +28,9 @@ class PyffishNode(Node):
 
     def add_successors(self) -> None:
         successors = []
+
         for action in pf.legal_moves(self.game, self.state, []):
+
             next_state = pf.get_fen(self.game, self.state, [action])
             child = PyffishNode(
                     state=next_state,
@@ -41,6 +43,10 @@ class PyffishNode(Node):
             successors.append(child)
 
         self.children = successors
+
+    def fen(self) -> str:
+        return self.state
+
 
 
 
