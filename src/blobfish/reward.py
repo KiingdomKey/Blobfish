@@ -17,50 +17,33 @@ TODO:
 from dataclasses import dataclass, field
 import random
 
+import chess
 import pyffish as pf
 import numpy as np
 import torch
 
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import Lock, Event
 
 import sys
 import time
 
 from pyffish_node import PyffishNode
+from python_chess_node import PythonChessNode
+from minichess_node import MinichessNode
+
+import queue
+
+import warnings
 
 print("GIL enabled: ", sys._is_gil_enabled())
 
 
-NUM_THREADS = 16
+NUM_THREADS = 32
 BATCHING = True
 
-
-batch = [None]*NUM_THREADS
-batch_output = torch.rand(size=(NUM_THREADS, 1))
-
-
-num_threads_alive_lock = Lock()
-num_threads_alive = NUM_THREADS
-
-# Keeps track of how many threads are done looking for a new node (and need it now processed)
-num_threads_done_processing_lock = Lock()
-num_threads_done_processing = 0
-
-# Keeps track of how many threads are done waiting after the processing loop is finished
-num_threads_done_waiting_lock = Lock()
-num_threads_done_waiting = 0
-
-# Makes sure all threads are synched up before touching anything related to the batch processing. Set to allow threads through the first time through.
-preemptive = Event()
-preemptive.set()
-
-# Determines when to start processing a batch
-ready_to_process = Event()
-
-# Determines when threads can continue (after the batch is processed)
-continue_search = Event()
+# What the processing loop reads from. In the format (<thread_id>, <data>, <queue to signal completion to>)
+task_queue = queue.Queue()
 
 
 def get_active_workers() -> int:
@@ -104,7 +87,6 @@ class Agent():
 
 
 def mcts(root: Node,
-         game: str,
          num_runs: int,
          player: Agent = None,
          thread_num: int = None,
@@ -122,22 +104,22 @@ def mcts(root: Node,
     """
 
     global num_threads_done_processing, num_threads_alive, num_threads_done_waiting
-
-    for i in range(0, num_runs):
+    i = 0
+    for _ in range(0, num_runs):
+        i += 1
         cur = root
         # Get to a leaf node (if we're not already at one)
-
-        while len(cur.children) != 0:
+        while len(cur.children) > 0:
             # Pick child with highest metric value
             cur.children.sort()
             cur = cur.children[-1]
-        
-        # We've been to this leaf at least once, so add its children and do backprop on its first child (we haven't evaluate the children, so it's ok to pick a random child)
-        if cur.visits == 1:
-           # print(cur)
+        # We haven't been to this node yet, so add its children and do backprop on its first child (we haven't evaluate the children, so it's ok to pick a random child)
+        if not cur.expanded and cur.is_terminal() is None:
+            
             cur.add_successors()
+            cur.expanded = True
             cur = cur.children[0]
-
+            
         # If this state is a terminal state, get ground-truth value
         result = cur.is_terminal()
         if result is not None:
@@ -145,7 +127,7 @@ def mcts(root: Node,
         # Non-terminal state, so get estimation of the state's value
         else:
             value = get_value(thread_num, cur) if batching else random.uniform(-5, 5)
-        
+
         backprop(cur, value)
 
 
@@ -155,15 +137,8 @@ def mcts(root: Node,
 
     # Clean up if batching
     if batching:
-        with num_threads_alive_lock:
-            num_threads_alive -= 1
-            # If all other threads are already waiting to process but this one is going to get reaped, we need to let them process (this took forever to find)
-            with num_threads_done_processing_lock:
-                    # 2 Cases where we need to reset the processing loop
-                    # 1. If all other threads are already waiting to process but this one is going to get reaped, we need to let them process (this took forever to find)
-                    # 2. If all threads have ended their search, we have to make sure the processing loop doesn't get stuck if it's already waiting
-                if (num_threads_alive == num_threads_done_processing) or (num_threads_alive == 0):
-                    ready_to_process.set()
+        task_queue.put(None)
+    
     return best_action, value
 
 
@@ -179,36 +154,17 @@ def get_value(thread_num: int, state) -> float:
         Estimated value of the state after processing.
     """
 
-    global num_threads_done_processing, batch, num_threads_alive, num_threads_done_waiting, num_threads_alive
+    response_queue = queue.Queue()
+    data = thread_num
 
-    batch[thread_num] = thread_num
+    # Send data over to be processed
+    task_queue.put((thread_num, data, response_queue))
 
-    # Makes sure all threads are synched up. This isn't active the first time, because we want to make sure that no threads can reach the next part again while another thread is still in this function
-    preemptive.wait()
+    # Wait for data to be processed
+    returned_thread_num, response = response_queue.get()
+    assert returned_thread_num == thread_num # if this fails then each thread is not getting its own data back (bad)
 
-
-    with num_threads_alive_lock:
-        with num_threads_done_processing_lock:
-            num_threads_done_processing += 1
-            if num_threads_done_processing == num_threads_alive: # (If this is the last thread to check this)
-                num_threads_done_processing = 0
-                # Once the last thread is here, we reenable the previous checkpoint and start the processing
-                preemptive.clear()
-                ready_to_process.set()
-
-    # All threads wait for the processing to finish
-    continue_search.wait()
-
-    with num_threads_alive_lock:
-        with num_threads_done_waiting_lock:
-            num_threads_done_waiting += 1
-            if num_threads_done_waiting == num_threads_alive: # (If this is the last thread to check this)
-                num_threads_done_waiting = 0
-                # This is the last thread in this loop (doing anything relevant), so we reset the checkpoints
-                continue_search.clear()
-                preemptive.set() 
-
-    return batch_output[thread_num, 0].item()
+    return response
 
 
 
@@ -220,50 +176,81 @@ def process_batch_loop(player: Agent) -> None:
         player: the network
     """
 
-    global batch_output
-
     if not BATCHING:
         return
 
-    while num_threads_alive > 0:
-        # Wait until a new batch is ready (i.e. all threads are ready)
-        ready_to_process.wait()
-        ready_to_process.clear()
+    finished_threads = 0
+    batch_size = NUM_THREADS
+    id_list = []
+    data_list = []
+    response_queue_list = []
 
-        if num_threads_alive < 1:
-            break
+    while finished_threads < NUM_THREADS and get_active_workers() > 0:
+        # As we lose workers, we want to lower the batch size (so that we actually process batches)
+        if get_active_workers() < batch_size:
+            batch_size = get_active_workers()
 
-        batch_output = torch.rand(size=(NUM_THREADS, 1)) # placeholder for forward pass
+        try:
+            # Get data from a thread
+            received = task_queue.get(timeout=0.01)
+            if received is None: # i.e. a thread has ended/is ending
+                finished_threads += 1
+                continue
 
-        # We're done processing so the threads can continue and read the data
-        continue_search.set()
-    
+            # Add data to the batch
+            thread_num, data, response_queue = received
+
+            id_list.append(thread_num)
+            data_list.append(data)
+            response_queue_list.append(response_queue)
+        # If the queue timedout
+        except queue.Empty:
+            pass
+
+        # Batch is ready, so process it
+        if len(data_list) >= batch_size:
+            for i, (thread_num, response_queue) in enumerate(zip(id_list, response_queue_list)):
+                batch = torch.tensor(data_list)
+                batch_output = torch.rand(size=(NUM_THREADS, 1)) # dummy operation
+
+                response_queue.put((thread_num, batch_output[i, 0]))
+                response_queue.task_done() # Signal a thread that its data is processed
+
+            id_list = []
+            data_list = []
+            response_queue_list = []
+            
 
 
 if __name__ == "__main__":
-    game = "gardner"
-    start = pf.start_fen(game)
-    root = PyffishNode(state=start, game=game)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        game = "gardner"
+        start = pf.start_fen(game)
 
-    p1 = Agent(50)
+        p1 = Agent(50)
+        start_time = time.time()
 
+        #root = PythonChessNode(state=chess.Board(), player_color='WHITE')
+        #root = PyffishNode(state=start, game=game)
+        #root = MinichessNode(game="5x5gardner")
 
-    start_time = time.time()
-    mcts(root=root, game=game, num_runs=500, thread_num=0, batching=False)
+        #mcts(root=root, num_runs=10000, thread_num=0, batching=BATCHING)
 
+        with ThreadPoolExecutor(max_workers=NUM_THREADS + 1) as executor:
 
-    ''' don't run with pyffish nodes
-    with ThreadPoolExecutor(max_workers=NUM_THREADS + 1) as executor:
-        # executor.submit(process_batch_loop, p1)
-        for i in range(NUM_THREADS):
-            a = start[:]
-            b = game[:]
+            for i in range(NUM_THREADS):
 
-            executor.submit(mcts, start_state=a, game=b, num_runs=50, thread_num=i, batching=False)
-    '''
+                #root = PythonChessNode(state=chess.Board(), player_color='WHITE')
+                #root = PyffishNode(state=start, game=game)
+                root = MinichessNode(game="5x5gardner")
+                executor.submit(mcts, root=root, num_runs=500, thread_num=i, batching=BATCHING)
+            if BATCHING:
+                executor.submit(process_batch_loop, p1)
 
-
-    print("time: ", time.time() - start_time)
+        
+        
+        print("time: ", time.time() - start_time)
 
             
 
