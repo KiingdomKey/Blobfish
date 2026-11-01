@@ -1,6 +1,5 @@
 import numpy as np
-
-
+import chess
 
 def UCB(T_child: float,
         c: float,
@@ -54,6 +53,7 @@ class Node:
         self.total_value = total_value
         self.visits = visits
         self.depth = depth
+        self.expanded = False
     
 
     # Is here to make it easier to change out our MCTS metric (just have to replace the contents of this function)
@@ -66,6 +66,10 @@ class Node:
 
     def __float__(self):
         return self.total_value / self.visits if self.visits > 0 else 0
+
+    def __str__(self) -> str:
+        board = chess.Board(fen=self.fen())
+        return str(board)
 
     def is_terminal(self) -> float | None:
         """
@@ -80,3 +84,13 @@ class Node:
         """
 
         raise NotImplementedError
+
+    def fen(self) -> str:
+        """
+        Returns:
+            The current board state in FEN format
+        """
+
+        raise NotImplementedError
+
+
