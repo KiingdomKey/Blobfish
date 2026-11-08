@@ -57,6 +57,9 @@ def get_initial_chess_object(full_name: str):
     straight_hash_table, straight_magics, straight_shift = data["hash_table"], data["magics"], data["shift"]
     PAWN_MOVES_SINGLE = pawn_moves_single(dims)
     PAWN_MOVES_DOUBLE = pawn_moves_double(dims)
+    if "gardner" in full_name:
+        # Gardner has no two-square pawn move, so clear the double-move table
+        PAWN_MOVES_DOUBLE[:] = 0
     PAWN_ATTACKS = pawn_attacks(dims)
     KNIGHT_MOVES = knight_moves(dims)
     KING_MOVES = king_moves(dims)
