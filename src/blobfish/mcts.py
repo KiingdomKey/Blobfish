@@ -211,11 +211,14 @@ def process_batch_loop(value_func: Callable) -> None:
         if process_batch:
 
             for i, (thread_num, response_queue) in enumerate(zip(id_list, response_queue_list)):
-                batch = torch.tensor(data_list)
-                batch_output = value_func(batch)
+                try:
+                    batch = torch.tensor(data_list)
+                    batch_output = value_func(batch)
+                    response_queue.put((thread_num, batch_output[i]))
+                    response_queue.task_done() # Signal a thread that its data is processed
+                except:
+                    print("oh")
 
-                response_queue.put((thread_num, 0))
-                response_queue.task_done() # Signal a thread that its data is processed
 
             id_list = []
             data_list = []
