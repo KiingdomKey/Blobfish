@@ -22,6 +22,8 @@ print(f"GIL enabled: {sys._is_gil_enabled()}")
 
 NUM_THREADS = 32
 BATCHING = True
+BATCH_SIZE = 16
+RUNS = 1
 
 TEMP_OUTPUT_SHAPE = (NUM_THREADS, 18, 5, 5)
 
@@ -114,21 +116,30 @@ if __name__ == "__main__":
     )
 
     def get_dummy_data(x):
-        return torch.rand(TEMP_OUTPUT_SHAPE)
+        return torch.rand(x.shape[0])
 
     root = MinichessNode(game="5x5gardner")
-    root = PythonChessNode()
-
+    
     start_time = time.time()
 
-    play_n_train_games(value_func=get_dummy_data,
-                        root_node=root,
-                        buffer=buffer,
-                        num_simulations=50,
-                        num_games=4)
+    for _ in range(RUNS):
 
-    print(buffer)
+        play_n_train_games(value_func=get_dummy_data,
+                            root_node=root,
+                            buffer=buffer,
+                            num_simulations=50,
+                            num_games=4)
+
+        sample = buffer.sample(BATCH_SIZE)
+        
+        x = sample[:]["state"]
+        y = sample[:]["reward"]
+
+        print(x.shape)
+        print(y)
+        print(buffer)
+
+    print(f"Time taken: {time.time() - start_time}")
 
 
-    print("time: ", time.time() - start_time)
 
