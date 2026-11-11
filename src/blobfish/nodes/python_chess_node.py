@@ -4,8 +4,8 @@ import chess
 
 class PythonChessNode(Node):
     def __init__(self,
-                 state: chess.Board,
-                 player_color: chess.Color,
+                 state: chess.Board = chess.Board(),
+                 player_color: chess.Color = chess.WHITE,
                  **kwargs):
         """
         Args:
@@ -15,6 +15,13 @@ class PythonChessNode(Node):
         super().__init__(**kwargs)
         self.state = state
         self.player_color = player_color
+
+    def copy(self) -> Node:
+        c = PythonChessNode(
+            state=self.state.copy(),
+            player_color=self.player_color,
+        )
+        return c
 
     def is_terminal(self) -> int | None:
 

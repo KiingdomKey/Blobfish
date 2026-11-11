@@ -1,5 +1,7 @@
-import numpy as np
 import chess
+import numpy as np
+import torch
+
 
 def UCB(T_child: float,
         c: float,
@@ -28,7 +30,6 @@ class Node:
     Class a node in the tree. Most members self-explanatory, but:
     
     Data members:
-        state:              current board state
         action:             what move was made to get here from parent
         parent:             reference to parent node (we need to be able to backtrack up the tree for backpropagation)
         children:           list of all children nodes
@@ -39,6 +40,7 @@ class Node:
     Child class should implement, at least:
         is_terminal
         add_successors
+        fen
     '''
     def __init__(self,
                  action: str = None,
@@ -67,9 +69,25 @@ class Node:
     def __float__(self):
         return self.total_value / self.visits if self.visits > 0 else 0
 
+    # For pretty-printing
     def __str__(self) -> str:
         board = chess.Board(fen=self.fen())
         return str(board)
+
+    def get_child(self, action: str) -> Node | None:
+
+        for child in self.children:
+            if child.action == action:
+                return child
+
+        return None
+
+    def copy(self) -> Node:
+        """
+        Returns: A deep copy of the object. Will *not* copy any children (we should never be in a situation where we do that anyways).
+                 Basically, it returns a blank state node that starts from the state it was copied from.
+        """
+        raise NotImplementedError
 
     def is_terminal(self) -> float | None:
         """
@@ -92,5 +110,3 @@ class Node:
         """
 
         raise NotImplementedError
-
-

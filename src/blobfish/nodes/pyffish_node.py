@@ -16,6 +16,13 @@ class PyffishNode(Node):
         self.state = state
         self.game = game
 
+    def copy(self) -> Node:
+        c = PyffishNode(
+            state=self.state,
+            game=self.game,
+        )
+        return c
+
     def is_terminal(self) -> int | None:
 
         result = None
@@ -28,7 +35,6 @@ class PyffishNode(Node):
 
     def add_successors(self) -> None:
         successors = []
-
         for action in pf.legal_moves(self.game, self.state, []):
 
             next_state = pf.get_fen(self.game, self.state, [action])
@@ -41,7 +47,7 @@ class PyffishNode(Node):
                     )
 
             successors.append(child)
-
+        
         self.children = successors
 
     def fen(self) -> str:
