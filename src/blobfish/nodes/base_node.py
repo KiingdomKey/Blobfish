@@ -68,8 +68,16 @@ class Node:
         return self.total_value / self.visits if self.visits > 0 else 0
 
     def __str__(self) -> str:
-        board = chess.Board(fen=self.fen())
-        return str(board)
+        rows = self.fen().split()[0].split("/")
+        size = len(rows)
+        lines = []
+        for i, row in enumerate(rows):
+            squares = []
+            for ch in row:
+                squares += ["."] * int(ch) if ch.isdigit() else [ch]
+            lines.append(f"{size - i} " + " ".join(squares))
+        lines.append("  " + " ".join("abcdefgh"[:size]))
+        return "\n".join(lines)
 
     def is_terminal(self) -> float | None:
         """
