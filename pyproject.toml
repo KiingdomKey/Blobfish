@@ -13,6 +13,9 @@ dependencies = [
     "chess",
     "pyffish",
     "numpy",
+    "numba",
+    "torchrl",
+    "tensordict",
 ]
 
 [project.optional-dependencies]
