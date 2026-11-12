@@ -4,7 +4,7 @@ A chess agent that learns entirely through self-play by combining **Monte Carlo 
 
 A neural network suggests promising moves (the *actor*) and estimates how good positions are (the *critic*). MCTS uses those estimates to search selectively instead of by brute force. Progress is measured by playing Blobfish against Stockfish at increasing difficulty levels.
 
-See [`4350_project_abstract.pdf`](docs/4350_project_abstract.pdf) for the full project proposal.
+See [`Blobfish-Abstract.pdf`](docs/Blobfish-Abstract.pdf) for the full project proposal.
 
 ## How it works:
 
