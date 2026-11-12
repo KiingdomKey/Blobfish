@@ -10,9 +10,20 @@ so the weights trained on a smaller board can be the starting point for the next
 
 in:  fen string, ex "rnbqk/ppppp/5/PPPPP/RNBQK w - - 0 1" (gardner 5x5 start)
 out: tensor of shape (18, size, size)
+
+encode_with_mask also gives back the legal move mask the network needs to ignore illegal moves
+     planes, mask = encode_with_mask(fen)                  # legal moves from pyffish
+     planes, mask = encode_with_mask(fen, legal_moves)     # or pass the ones mcts already has
 """
 
+import pyffish as sf
 import torch
+
+# works both from src/blobfish (how the tests run) and as blobfish.encoding (how bench imports it)
+try:
+    from .move_mapping import legal_mask
+except ImportError:
+    from move_mapping import legal_mask
 
 
 # pyffish variant for each board size (losalamos gotz no bishopz)
@@ -101,3 +112,25 @@ def encode(fen):
 def policy_size(board_size=8):
     move_types = 8 * (board_size - 1) + 8 + 9
     return board_size * board_size * move_types
+
+
+def legal_moves_from_fen(fen):
+    # asks pyffish for every legal move in this position, like ["b1c3", "a4a5q"]
+    # the board size tells us which variant's rules to use
+    size = len(fen.split()[0].split("/"))
+    return sf.legal_moves(VARIANTS[size], fen, [])
+
+
+def encode_with_mask(fen, legal_moves=None):
+    # the board planes plus a mask with 1 for every legal move slot and 0 for the rest
+    # pass legal_moves if you already have them (mcts does) so the mask comes from the exact same
+    # move list the search is using, otherwise we ask pyffish
+    if legal_moves is None:
+        legal_moves = legal_moves_from_fen(fen)
+
+    # the mask has to flip on blacks turn the same way the planes do so slots line up with the board
+    planes = encode(fen)
+    size = planes.shape[-1]
+    black_to_move = len(fen.split()) > 1 and fen.split()[1] == "b"
+    mask = torch.from_numpy(legal_mask(legal_moves, size, black_to_move))
+    return planes, mask
