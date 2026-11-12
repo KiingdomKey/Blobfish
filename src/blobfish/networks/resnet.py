@@ -5,7 +5,12 @@ A small version of the network alphazero used. One shared trunk of residual bloc
 then it splits into two heads, policy (which move) and value (who's winning).
 Built on top of PolicyValueNet so it gets all the training stuff from base.py for free
 
+build: input_shape  is ONE board (planes, size, size), ex (18, 5, 5), no batch dimension
+       so input_shape[0] is the 18 planes and input_shape[1:] is the board size
+       output_shape is (number of move slots,), ex (1225,) for 5x5
+
 in:  board planes from encoding.py, shape (batch, 18, size, size)
+     this is what goes into forward, the batch only shows up here
 out: (policy_logits, value)
      policy_logits is (batch, number of move slots)
      value is (batch, 1), squashed into -1 to 1
