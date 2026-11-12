@@ -56,15 +56,15 @@ This installs the `blobfish` package (in `src/`) in editable mode along with its
 
 ### Faster pyffish (recommended)
 
-Our beloved Emily found a serious slowdown in the original Fairy-Stockfish code: the pyffish on PyPI spends about 3 ms on every single call rebuilding tables it already has, which makes benchmarks and anything that checks the rules a lot really slow. So she patched it! The fixed version is about 600x faster per call, gives the exact same answers as the original, and passes Fairy-Stockfish's own tests (the Python test suite, engine bench and move generation checks). It's also submitted upstream in [Fairy-Stockfish#1072](https://github.com/fairy-stockfish/Fairy-Stockfish/pull/1072).
+Our beloved Emily found a massive bottleneck in the original Fairy-Stockfish code: the pyffish on PyPI spends about 3 ms on each of our calls (even the simple getters!) rebuilding tables it already has, which makes benchmarks and anything that checks the rules a lot really slow. So she patched it! The Emily version is about 600x faster per call, gives the exact same answers as the original, and passes Fairy-Stockfish's own tests (the Python test suite, engine bench and move generation checks). It's also submitted upstream in [Fairy-Stockfish#1072](https://github.com/fairy-stockfish/Fairy-Stockfish/pull/1072).
 
-To use it, run this inside `blobfish-env` after the setup above:
+To use it instead of the original version, run this inside `blobfish-env` after the setup above:
 
 ```bash
 pip install --force-reinstall --no-deps --no-index --find-links https://github.com/et4v/Fairy-Stockfish/releases/expanded_assets/pyffish-0.0.90-fast pyffish
 ```
 
-No compiler needed, pip picks the right file for your OS and Python version (Windows, macOS and Linux, Python 3.8 to 3.14). Check it worked with `pip show pyffish`, which should say `Version: 0.0.90.post1`.
+No compiler needed! Pip picks the right file for your OS and Python version (Windows, macOS and Linux, Python 3.8 to 3.14). Check it worked with `pip show pyffish`, which should say `Version: 0.0.90.post1`.
 
 To go back to the normal version: `pip install --force-reinstall pyffish`. Upgrading pyffish (`pip install --upgrade ...`) also swaps it back, so rerun the command above if that happens. Once the fix is released on PyPI this section can go away.
 
