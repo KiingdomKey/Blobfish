@@ -56,7 +56,9 @@ This installs the `blobfish` package (in `src/`) in editable mode along with its
 
 ### Faster pyffish (recommended)
 
-The pyffish on PyPI spends about 3 ms on every call rebuilding tables it already has, which makes benchmarks and anything that checks the rules a lot really slow. There's a fixed build that's about 600x faster per call with the exact same results (fix submitted upstream in [Fairy-Stockfish#1072](https://github.com/fairy-stockfish/Fairy-Stockfish/pull/1072)). After the setup above, run this inside `blobfish-env`:
+Our beloved Emily found a serious slowdown in the original Fairy-Stockfish code: the pyffish on PyPI spends about 3 ms on every single call rebuilding tables it already has, which makes benchmarks and anything that checks the rules a lot really slow. So she patched it! The fixed version is about 600x faster per call, gives the exact same answers as the original, and passes Fairy-Stockfish's own tests (the Python test suite, engine bench and move generation checks). It's also submitted upstream in [Fairy-Stockfish#1072](https://github.com/fairy-stockfish/Fairy-Stockfish/pull/1072).
+
+To use it, run this inside `blobfish-env` after the setup above:
 
 ```bash
 pip install --force-reinstall --no-deps --no-index --find-links https://github.com/et4v/Fairy-Stockfish/releases/expanded_assets/pyffish-0.0.90-fast pyffish
