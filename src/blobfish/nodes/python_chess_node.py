@@ -15,6 +15,7 @@ class PythonChessNode(Node):
         super().__init__(**kwargs)
         self.state = state
         self.player_color = player_color
+        self.board_size = 8
 
     def copy(self) -> Node:
         c = PythonChessNode(
@@ -31,7 +32,7 @@ class PythonChessNode(Node):
             if not outcome:
                 result = 0
             else:
-                value = 1 if outcome.winner == self.player_color else -1
+                result = 1 if self.white_to_move else -1
 
         return result
 
@@ -45,7 +46,8 @@ class PythonChessNode(Node):
                                               player_color=self.player_color,
                                               action=action,
                                               parent=self,
-                                              depth=self.depth+1))
+                                              depth=self.depth+1,
+                                              white_to_move=not self.white_to_move,))
 
         self.children = successors
 
