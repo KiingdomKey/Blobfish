@@ -1,11 +1,12 @@
 # Fairy-Stockfish for our Blobfish purposes
+### by Emily Tew <3
 
 There are basically no official docs for the Python side, so most of this was
 figured out by just poking at it. All the examples below were run and the outputs are real for ref
 
 ## what it is and why we use it
 
-Stockfish is a very good chess engine. Fairy-Stockfish is a version of it that knows weird chess variants, including the two small boards wes gonna use. Regular
+Stockfish is a very good chess engine. Fairy-Stockfish is a version of it that knows weird chess variants, including the two small boards we shall use. Regular
 Stockfish only plays normal 8x8 chess, which is why we need the fairy one.
 
 We use it for these two jobs:
