@@ -5,7 +5,12 @@ Every architecture we try shall be built on top of this generic.
 This is the contract which says what goes in and what comes out so mcts,
 self play and training never have to deal directly with the network they're using
 
+build: input_shape  is ONE board (planes, size, size), ex (18, 5, 5), no batch dimension
+       output_shape is (number of move slots,), ex (1225,) for 5x5
+       these are only used once to size the layers, the network works with any batch size after that
+
 in:  board planes determined by an encoding file, shape (batch, 18, size, size)
+     this is what goes into forward, predict and evaluate, the batch only shows up here
 out: (policy_logits, value)
      policy_logits is just (batch, number of move slots), one raw score per move
      value is (batch, 1), how good the position is from -1 for losing to 1 for winning
