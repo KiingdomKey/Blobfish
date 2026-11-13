@@ -127,7 +127,7 @@ class Chess:
         if self.legal_move_cache is None:
             self.legal_moves()
 
-        if self.ply_count_without_adv > 20 or self.insufficient_material():
+        if self.ply_count_without_adv > 100 or self.insufficient_material():
             return 0
 
         if not self.has_legal_moves:
