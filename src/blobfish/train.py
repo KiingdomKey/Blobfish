@@ -24,7 +24,6 @@ from move_mapping import move_to_index
 import sys
 import time
 
-from torchinfo import summary
 
 NUM_THREADS = 6
 BATCHING = True # should not be off in this file
