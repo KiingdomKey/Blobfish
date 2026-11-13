@@ -2,7 +2,9 @@ import chess
 import numpy as np
 import torch
 
-from move_mapping import move_to_index
+from move_mapping import move_to_index, legal_mask
+
+
 
 
 def UCB(T_child: float,
@@ -27,6 +29,33 @@ def UCB(T_child: float,
     else:
         return (T_child / n_child) + c * np.sqrt(np.log(n_parent) / n_child) 
 
+def PUCT(T_child: float,
+         c: float,
+         n_parent: int,
+         n_child: int,
+         p: float) -> float:
+    """
+    Calculates the Predictor Upper Confidence Bound applied to Trees (PUCT (I think this is what the acronym's short for?)) value for the given inputs.
+    Note: The formula is a little different from UCB (it's not just adding an extra term)
+
+    Args:
+        T_child:    T value (the total sum of values of explored children)
+        C:          exploration constant
+        n_parent:   number of times the parent has been visited
+        n_child:    number of times the child has been visited
+        p:          Prior of the parent to the child
+    
+    Returns:
+        UCB value given the above arguments. Returns infinity if the child has never been explored
+    """
+    if n_child == 0:
+        Q = 0
+    else:
+        Q = T_child / n_child
+
+    return Q + c * p * np.sqrt(n_parent) / (1 + n_child) 
+
+
 class Node:
     '''
     Class a node in the tree. Most members self-explanatory, but:
@@ -40,12 +69,14 @@ class Node:
         depth:              depth of node (not actually needed by algortihm, it's just here for testing purposes)   
         prior_from_parent:  The prior from the parent state when predicting this state (i.e. the actor's estimated goodness from the parent state to this state)
         priors:             Move priors of this state 
+        white_to_move:      Whether or not it's currently white's turn
 
     Child class should have the following data members:
         state
         board_len
 
     Child class should implement, at least:
+        copy
         is_terminal
         add_successors
         fen
@@ -74,10 +105,10 @@ class Node:
 
     # Is here to make it easier to change out our MCTS metric (just have to replace the contents of this function)
     def mcts_metric(self):
-        score = UCB(T_child=self.total_value, c=2, n_parent=self.parent.visits, n_child=self.visits)
         if self.prior_from_parent is not None:
-
-            score *= self.prior_from_parent
+            score = PUCT(T_child=self.total_value, c=10, n_parent=self.parent.visits, n_child=self.visits, p=self.prior_from_parent)
+        else:
+            score = UCB(T_child=self.total_value, c=10, n_parent=self.parent.visits, n_child=self.visits)
 
         return score
 
@@ -100,6 +131,12 @@ class Node:
             lines.append(f"{size - i} " + " ".join(squares))
         lines.append("  " + " ".join("abcdefgh"[:size]))
         return "\n".join(lines)
+
+    def get_legal_move_mask(self):
+        legal_moves = [c.action for c in self.children]
+        mask = legal_mask(legal_moves=legal_moves, size=self.board_size, black_to_move=not self.white_to_move)
+        return mask
+
 
     def add_priors_to_children_and_self(self, priors: np.array) -> None:
         """
