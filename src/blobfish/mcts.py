@@ -32,6 +32,8 @@ from nodes.pyffish_node import PyffishNode
 from nodes.python_chess_node import PythonChessNode
 from nodes.minichess_node import MinichessNode
 
+from encoding import encode
+
 import warnings
 
 # What the processing loop reads from. In the format (<thread_id>, <data>, <queue to signal completion to>)
@@ -65,6 +67,7 @@ def backprop(node: Node, value) -> None:
         cur.total_value += value
         cur.visits += 1
         cur = cur.parent
+        value = -value
 
 
 
@@ -89,21 +92,22 @@ def mcts(root: Node,
     assert (batching and thread_num is not None) or value_func is not None, "Invalid combination of parameters."
 
     for i in range(0, num_runs):
-
         cur = root
+
         # Get to a leaf node (if we're not already at one)
         while len(cur.children) > 0:
-            
             # Pick child with highest metric value
             cur.children.sort()
-            cur = cur.children[-1]
 
+            cur = cur.children[-1]
+    
         # We haven't been to this node yet, so add its children and do backprop on its first child (we haven't evaluate the children, so it's ok to pick a random child)
         if not cur.expanded and cur.is_terminal() is None:
-            
+
             cur.add_successors()
             cur.expanded = True
-            cur = cur.children[0]
+          #  cur = cur.children[0]
+
 
         # If this state is a terminal state, get ground-truth value
         result = cur.is_terminal()
@@ -112,48 +116,53 @@ def mcts(root: Node,
 
         # Non-terminal state, so get estimation of the state's value
         else:
+            if not batching:
+                value = value_func(encode(cur.fen()))
+            else:
 
-            value = get_value_batching(thread_num, cur) if batching else value_func(cur.state)
+                policy_priors, value = get_value_batching(thread_num, cur)
+                cur.add_priors_to_children_and_self(policy_priors)
 
         backprop(cur, value)
+
 
 
     # Find which action leads to the best immediate child
     idx = np.argmax(root.children)
     best_action = root.children[idx].action
-
     # Clean up if batching
     if batching:
         task_queue.put(None)
+   
+    return best_action, root.total_value / root.visits, root.priors
 
-    return best_action, value
 
 
-
-def get_value_batching(thread_num: int, state) -> float:
+def get_value_batching(thread_num: int, cur: Node) -> float:
     """
     Adds a state to the batch to be processed. 
 
     Args:
         thread_num: Number associated with the calling thread. Used to know where to store / retrieve value
-        state:      State to be processed.
+        cur:        Current node
 
     Returns:
         Estimated value of the state after processing.
     """
 
     response_queue = queue.Queue()
-    data = thread_num
+    data = encode(cur.fen())
 
     # Send data over to be processed
     task_queue.put((thread_num, data, response_queue))
 
     # Wait for data to be processed
     returned_thread_num, response = response_queue.get()
+    p, v = response
 
     assert returned_thread_num == thread_num # if this fails then each thread is not getting its own data back (bad)
 
-    return response
+    return p, v
 
 
 
@@ -198,8 +207,10 @@ def process_batch_loop(value_func: Callable) -> None:
             data_list.append(data)
             response_queue_list.append(response_queue)
 
+
         # If the queue timed-out
         except queue.Empty:
+            # If we have anything waiting to be processed, we might as well do it
             if len(data_list) > 0:
                 process_batch = True
             pass
@@ -212,45 +223,21 @@ def process_batch_loop(value_func: Callable) -> None:
 
             for i, (thread_num, response_queue) in enumerate(zip(id_list, response_queue_list)):
                 try:
-                    batch = torch.tensor(data_list)
+
+                    batch = torch.stack(data_list)
                     batch_output = value_func(batch)
-                    response_queue.put((thread_num, batch_output[i]))
+                    p = batch_output[0][i]
+                    v = batch_output[1][i].item()
+                    response_queue.put((thread_num, (p, v)))
                     response_queue.task_done() # Signal a thread that its data is processed
                 except:
-                    print("oh")
+                    print("oh. something went wrong with the batching.")
 
 
             id_list = []
             data_list = []
             response_queue_list = []
 
-
-# main is just here for testing purposes
-'''
-if __name__ == "__main__":
-
-        
-    game = "gardner"
-    start = pf.start_fen(game)
-
-    def value_func(state):
-        return random.random()
-
-    start_time = time.time()
-
-    with ThreadPoolExecutor(max_workers=NUM_THREADS + 1) as executor:
-
-        for i in range(NUM_THREADS):
-
-            #root = PythonChessNode(state=chess.Board(), player_color='WHITE')
-            #root = PyffishNode(state=start, game=game)
-            root = MinichessNode(game="5x5gardner")
-            executor.submit(mcts, root=root, num_runs=500, thread_num=i, batching=BATCHING)
-        if BATCHING:
-            executor.submit(process_batch_loop, value_func)
-    
-    print("time: ", time.time() - start_time)
-'''
 
             
 

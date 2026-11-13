@@ -2,6 +2,8 @@ import chess
 import numpy as np
 import torch
 
+from move_mapping import move_to_index
+
 
 def UCB(T_child: float,
         c: float,
@@ -33,9 +35,15 @@ class Node:
         action:             what move was made to get here from parent
         parent:             reference to parent node (we need to be able to backtrack up the tree for backpropagation)
         children:           list of all children nodes
-        total_value:       total value of itself plus (explored) children
+        total_value:        total value of itself plus (explored) children
         visits:             number of visits to this node
         depth:              depth of node (not actually needed by algortihm, it's just here for testing purposes)   
+        prior_from_parent:  The prior from the parent state when predicting this state (i.e. the actor's estimated goodness from the parent state to this state)
+        priors:             Move priors of this state 
+
+    Child class should have the following data members:
+        state
+        board_len
 
     Child class should implement, at least:
         is_terminal
@@ -48,7 +56,10 @@ class Node:
                  children: list["Node"] = [], 
                  total_value: int = 0,
                  visits: int = 0,
-                 depth: int = 0):
+                 depth: int = 0,
+                 prior_from_parent: float = None,
+                 priors: np.array = None,
+                 white_to_move: bool = True,):
         self.action = action
         self.parent = parent
         self.children = children
@@ -56,11 +67,19 @@ class Node:
         self.visits = visits
         self.depth = depth
         self.expanded = False
+        self.prior_from_parent = prior_from_parent
+        self.priors = priors
+        self.white_to_move = white_to_move
     
 
     # Is here to make it easier to change out our MCTS metric (just have to replace the contents of this function)
     def mcts_metric(self):
-        return UCB(T_child=self.total_value, c=2, n_parent=self.parent.visits, n_child=self.visits)
+        score = UCB(T_child=self.total_value, c=2, n_parent=self.parent.visits, n_child=self.visits)
+        if self.prior_from_parent is not None:
+
+            score *= self.prior_from_parent
+
+        return score
 
     # Here to be able to sort our nodes by metric value
     def __lt__(self, rhs):
@@ -81,6 +100,20 @@ class Node:
             lines.append(f"{size - i} " + " ".join(squares))
         lines.append("  " + " ".join("abcdefgh"[:size]))
         return "\n".join(lines)
+
+    def add_priors_to_children_and_self(self, priors: np.array) -> None:
+        """
+        Gives priors from parent to each child respectively
+        Args:
+            priors:     a flattened NxN array of move priors
+        """
+        self.priors = priors
+        if len(self.children) == 0:
+            return
+
+        for child in self.children:
+            idx = move_to_index(child.action, self.board_size, black_to_move=not self.white_to_move)
+            child.prior_from_parent = priors[idx]
 
     def get_child(self, action: str) -> Node | None:
 

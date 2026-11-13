@@ -27,11 +27,14 @@ class PyffishNode(Node):
 
         result = None
         if not pf.legal_moves(self.game, self.state, []):
-            result = pf.game_result(self.game, self.state, [])
+            result = pf.game_result(self.game, self.state, []) / pf.VALUE_MATE
+            result = result if self.white_to_move else -result
         elif pf.is_optional_game_end(self.game, self.state, [])[0]:
             result = 0
 
-        return result / pf.VALUE_MATE if result is not None else None
+
+
+        return result if result is not None else None
 
     def add_successors(self) -> None:
         successors = []
@@ -43,7 +46,8 @@ class PyffishNode(Node):
                     game=self.game,
                     action=action,
                     parent=self,
-                    depth=self.depth+1
+                    depth=self.depth+1,
+                    white_to_move=not self.white_to_move,
                     )
 
             successors.append(child)
