@@ -75,7 +75,7 @@ def mcts(root: Node,
          num_runs: int,
          value_func: Callable = None,
          thread_num: int = None,
-         batching=False) -> tuple[str, float]:
+         batching=False) -> tuple[str, np.array]:
     """
     Performs MCTS with value estimation.
 
@@ -97,27 +97,38 @@ def mcts(root: Node,
         # Get to a leaf node (if we're not already at one)
         while len(cur.children) > 0:
             # Pick child with highest metric value
-            cur.children.sort()
+            best_idx, best_val = -1, -1
+            for i in range(len(cur.children)):
+                if cur.children[i].mcts_metric() > best_val:
+                    best_idx = i
+                    best_val = cur.children[i].mcts_metric()
 
-            cur = cur.children[-1]
+            cur = cur.children[best_idx]
     
-        # We haven't been to this node yet, so add its children and do backprop on its first child (we haven't evaluate the children, so it's ok to pick a random child)
+        # We haven't been to this node yet, so add its children and do backprop on its first child (we haven't evaluated the children, so it's ok to pick a random child)
         if not cur.expanded and cur.is_terminal() is None:
 
             cur.add_successors()
             cur.expanded = True
-          #  cur = cur.children[0]
-
 
         # If this state is a terminal state, get ground-truth value
         result = cur.is_terminal()
         if result is not None:
-            value = result
+            value = result if cur.white_to_move else -result
 
         # Non-terminal state, so get estimation of the state's value
         else:
             if not batching:
-                value = value_func(encode(cur.fen()))
+                state = encode(cur.fen()).unsqueeze(dim=0)
+                mask = torch.tensor(cur.get_legal_move_mask()).unsqueeze(dim=0)
+             
+                policy_priors, value = value_func(state, mask)
+
+                policy_priors = policy_priors.squeeze(0)
+                value = value.item()
+                
+                cur.add_priors_to_children_and_self(policy_priors)
+
             else:
 
                 policy_priors, value = get_value_batching(thread_num, cur)
@@ -128,13 +139,22 @@ def mcts(root: Node,
 
 
     # Find which action leads to the best immediate child
-    idx = np.argmax(root.children)
-    best_action = root.children[idx].action
+    best_action, highest_visits = "", 0
+    for child in root.children:
+        if child.visits > highest_visits:
+            highest_visits = child.visits
+            best_action = child.action
+
+    # Get visit counts
+    action_visit_count_pairs = {}
+    for child in root.children:
+        action_visit_count_pairs[child.action] = child.visits
+
     # Clean up if batching
     if batching:
         task_queue.put(None)
-   
-    return best_action, root.total_value / root.visits, root.priors
+
+    return best_action, root.priors, action_visit_count_pairs
 
 
 
@@ -153,8 +173,11 @@ def get_value_batching(thread_num: int, cur: Node) -> float:
     response_queue = queue.Queue()
     data = encode(cur.fen())
 
+    # Get move mask
+    mask = cur.get_legal_move_mask()
+
     # Send data over to be processed
-    task_queue.put((thread_num, data, response_queue))
+    task_queue.put((thread_num, (data, mask), response_queue))
 
     # Wait for data to be processed
     returned_thread_num, response = response_queue.get()
@@ -181,6 +204,7 @@ def process_batch_loop(value_func: Callable) -> None:
     batch_size = get_active_workers()
     id_list = []
     data_list = []
+    mask_list = []
     response_queue_list = []
 
     while get_active_workers() > 0:
@@ -201,10 +225,11 @@ def process_batch_loop(value_func: Callable) -> None:
                 continue
 
             # Add data to the batch
-            thread_num, data, response_queue = received
+            thread_num, (data, mask), response_queue = received
 
             id_list.append(thread_num)
             data_list.append(data)
+            mask_list.append(torch.tensor(mask))
             response_queue_list.append(response_queue)
 
 
@@ -225,7 +250,9 @@ def process_batch_loop(value_func: Callable) -> None:
                 try:
 
                     batch = torch.stack(data_list)
-                    batch_output = value_func(batch)
+                    masks = torch.stack(mask_list)
+
+                    batch_output = value_func(batch, masks)
                     p = batch_output[0][i]
                     v = batch_output[1][i].item()
                     response_queue.put((thread_num, (p, v)))
@@ -236,6 +263,7 @@ def process_batch_loop(value_func: Callable) -> None:
 
             id_list = []
             data_list = []
+            mask_list = []
             response_queue_list = []
 
 
