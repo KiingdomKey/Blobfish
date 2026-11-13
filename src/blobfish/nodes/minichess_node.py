@@ -31,13 +31,14 @@ class MinichessNode(Node):
     def is_terminal(self) -> int | None:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
-            
             return self.state.game_result()
 
     def copy(self) -> None:
         c = MinichessNode(
             state=self.state.copy(),
             game=self.game,
+            depth=self.depth+1,
+            white_to_move=self.white_to_move
         )
         return c
 
