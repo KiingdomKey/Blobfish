@@ -2,6 +2,7 @@ import torch
 import torchrl
 import lightning.pytorch as pl
 from torchrl.data import ReplayBuffer, LazyTensorStorage, TensorDictReplayBuffer
+from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from tensordict import TensorDict
 
 import numpy as np
@@ -25,10 +26,10 @@ import sys
 import time
 
 
-NUM_THREADS = 8
-BATCHING = True
+NUM_THREADS = 16
+BATCHING = False
 BATCH_SIZE = 16
-RUNS = 20
+RUNS = 100
 NUM_MONTE_CARLO_SIMS=50
 
 INPUT_SHAPE = (18, 5, 5)
@@ -70,13 +71,11 @@ def play_train_game(root_node: Node,
     move_mask_list = []
 
     while cur.is_terminal() is None:
-
         best_action, priors, action_visit_count_pairs = mcts(root=cur,
                                                              value_func=value_func,
                                                              num_runs=num_simulations,
                                                              thread_num=thread_num,
                                                              batching=batching)
-                                
         # For the network to train, we give it in priors in the form of how many times MCTS visited that move
         # e.g.: if we had 4 moves, we visited the 2nd one twice and the 4th one once, then it would be [0, 2, 0, 1]
         move_visits = torch.zeros_like(priors)
@@ -84,23 +83,23 @@ def play_train_game(root_node: Node,
             idx = move_to_index(action, cur.board_size, black_to_move=not cur.white_to_move)
             move_visits[idx] = visit_count
 
-
         priors_list.append(move_visits)
         visited_states.append(encode(cur.fen()))
         move_mask_list.append(torch.tensor(cur.get_legal_move_mask())) # Network needs the move mask so we know what moves to ignore
 
         cur = cur.get_child(best_action)
-        
+        cur.parent = None # We don't care about the parent anymore, so we set it to None so MCTS doesn't waste time doing backprop on it
+
+    states = torch.stack(visited_states)
 
     value = cur.is_terminal()
     if not root.white_to_move: # the terminal value is always from white's perspective, so flip it if playing black (white winning is bad for black)
         value *= -1
-        
+
     # Every move up to the end gets the value of the end of the game
     values = np.full(states.shape[0], value)
     values[1::2] = -value # We want to train on this game from both white and black's perspective, so we need the value of a state to match the agent's perspective for that move
 
-    states = torch.stack(visited_states)
     priors = torch.stack(priors_list)
     masks = torch.stack(move_mask_list)
 
@@ -151,15 +150,18 @@ def play_n_train_games(value_func,
     
 
 if __name__ == "__main__":
+
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(max_size=32768)
+        storage=LazyTensorStorage(max_size=32768),
+        batch_size=BATCH_SIZE,
+        sampler=SamplerWithoutReplacement()
     )
 
 
     node = MinichessNode(game="5x5gardner")
 
     # the following is to just get to a simplified endgame to test training
-    '''
+    
     all_moves = all_moves = "c2c3 c4c3 d2e3 d4e3 d1d5 e5d5 b2b3 a4b3 a2b3 c3c2 c1a3 b4a3 a1a3 d5e5 a3b3 e5d5 c3c4 d5c4 b3b5 c4d5 b5a5 d5e5 a5c5 e5e3 c5b5 e4d4 b5e5 d4d3 e5e3 c4b5 e3c3 b5a5 e2e3 a5b5 e3e4 b5a5 e4e5q a5a4"
     moves = all_moves.split()
     for move in moves:
@@ -169,7 +171,7 @@ if __name__ == "__main__":
             if node.children[i].action == move:
                 idx = i
         node = node.children[idx]
-    '''
+    
     
     
 
@@ -177,7 +179,8 @@ if __name__ == "__main__":
     print(root.white_to_move)
     print(root)
 
-    model = ResNet(input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE, value_weight=0.99)
+    model = ResNet(input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE, policy_loss="advantage")
+
     optimizer = model.configure_optimizers()
     
     start_time = time.time()
@@ -194,16 +197,16 @@ if __name__ == "__main__":
         successes = 0
         fails = 0
         draws = 0
-        for _ in range(0, int((len(buffer)) / BATCH_SIZE)):
 
-            sample = buffer.sample(BATCH_SIZE)
-            y = sample["value"]
+        for _, batch in enumerate(buffer):
+
+            y = batch["value"]
             successes += (y == 1).sum()
             fails += (y == -1).sum()
             draws += (y.shape[0] - (y == 1).sum() - (y == -1).sum())
 
             optimizer.zero_grad()
-            loss, policy_loss, value_loss = model.compute_loss(sample)
+            loss, policy_loss, value_loss = model.compute_loss(batch)
   
             loss.backward()
             optimizer.step()
