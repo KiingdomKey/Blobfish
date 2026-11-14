@@ -75,16 +75,22 @@ def mcts(root: Node,
          num_runs: int,
          value_func: Callable = None,
          thread_num: int = None,
-         batching=False) -> tuple[str, np.array]:
+         batching=False,
+         sample_best_move: bool = True) -> tuple[str, np.array, dict[str, int]]:
     """
     Performs MCTS with value estimation.
 
     Args:
-        start_state:    Root position to start search at
-        num_runs:       Max number of simulations
-        value_func:     Function to call to determine the value of a non-terminal state. Return value should be a float. Input type TBD. Optional if batching
-        thread_num:     Unique number for the current thread. Optional if not batching
-        batching:       Whether or not to batch forward passes across all threads (required arguments change)
+        start_state:        Root position to start search at
+        num_runs:           Max number of simulations
+        value_func:         Function to call to determine the value of a non-terminal state. Return value should be a float. Input type TBD. Optional if batching
+        thread_num:         Unique number for the current thread. Optional if not batching
+        batching:           Whether or not to batch forward passes across all threads (required arguments change)
+        sample_best_move:    Should the final returned move be sampled proportional to each child's visit count, or should it just pick the child action with the highest visit count
+    Returns:
+        best_action:                The best move from the position given
+        root_priors:                The priors of the root node
+        action_visit_count_pairs    A dict mapping each action to how many times its associated child was visited
     """
     # Note: this doesn't actually print anything if threading (as threads don't show errors by default)
     # TODO: figure out how to get threads to print errors (should've done this ages ago...)
@@ -97,6 +103,7 @@ def mcts(root: Node,
 
         # Get to a leaf node (if we're not already at one)
         while len(cur.children) > 0:
+
             # Pick child with highest metric value
             best_idx, best_val = -1, float('-inf')
             for i in range(len(cur.children)):
@@ -105,6 +112,7 @@ def mcts(root: Node,
                     best_val = cur.children[i].mcts_metric()
 
             cur = cur.children[best_idx]
+            
     
         # We haven't been to this node yet, so add its children and do backprop on its first child (we haven't evaluated the children, so it's ok to pick a random child)
         if not cur.expanded and cur.is_terminal() is None:
@@ -137,14 +145,20 @@ def mcts(root: Node,
 
         backprop(cur, value)
 
+    visits = torch.tensor([c.visits for c in root.children]).to(torch.float32)
 
+    sampling = torch.softmax(visits, dim=0)
 
-    # Find which action leads to the best immediate child
-    best_action, highest_visits = "", 0
-    for child in root.children:
-        if child.visits > highest_visits:
-            highest_visits = child.visits
-            best_action = child.action
+    if sample_best_move:
+        idx = torch.multinomial(sampling, num_samples=1).item()
+        best_action = root.children[idx].action
+    else:
+        # Find which action leads to the best immediate child
+        best_action, highest_visits = "", 0
+        for child in root.children:
+            if child.visits > highest_visits:
+                highest_visits = child.visits
+                best_action = child.action
 
     # Get visit counts
     action_visit_count_pairs = {}
