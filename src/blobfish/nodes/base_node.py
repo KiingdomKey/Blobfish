@@ -51,7 +51,7 @@ def PUCT(T_child: float,
     if n_child == 0:
         Q = 0
     else:
-        Q = T_child / n_child
+        Q = (T_child / n_child)
 
     return Q + c * p * np.sqrt(n_parent) / (1 + n_child) 
 
@@ -105,10 +105,14 @@ class Node:
 
     # Is here to make it easier to change out our MCTS metric (just have to replace the contents of this function)
     def mcts_metric(self):
+        """
+        We have to make T_child negative as the child's perspective is always opposite to the parent's (if the child's value is -1 (e.g. bad for black), the parent should see that as a 1 (bad for black = good for white!))
+        """
         if self.prior_from_parent is not None:
-            score = PUCT(T_child=self.total_value, c=10, n_parent=self.parent.visits, n_child=self.visits, p=self.prior_from_parent)
+            score = PUCT(T_child=-self.total_value, c=2, n_parent=self.parent.visits, n_child=self.visits, p=self.prior_from_parent)
         else:
-            score = UCB(T_child=self.total_value, c=10, n_parent=self.parent.visits, n_child=self.visits)
+            score = UCB(T_child=-self.total_value, c=2, n_parent=self.parent.visits, n_child=self.visits)
+
 
         return score
 
