@@ -91,13 +91,14 @@ def mcts(root: Node,
 
     assert (batching and thread_num is not None) or value_func is not None, "Invalid combination of parameters."
 
-    for i in range(0, num_runs):
+    while root.visits < num_runs:
+
         cur = root
 
         # Get to a leaf node (if we're not already at one)
         while len(cur.children) > 0:
             # Pick child with highest metric value
-            best_idx, best_val = -1, -1
+            best_idx, best_val = -1, float('-inf')
             for i in range(len(cur.children)):
                 if cur.children[i].mcts_metric() > best_val:
                     best_idx = i
@@ -232,7 +233,6 @@ def process_batch_loop(value_func: Callable) -> None:
             mask_list.append(torch.tensor(mask))
             response_queue_list.append(response_queue)
 
-
         # If the queue timed-out
         except queue.Empty:
             # If we have anything waiting to be processed, we might as well do it
@@ -253,8 +253,10 @@ def process_batch_loop(value_func: Callable) -> None:
                     masks = torch.stack(mask_list)
 
                     batch_output = value_func(batch, masks)
+
                     p = batch_output[0][i]
                     v = batch_output[1][i].item()
+
                     response_queue.put((thread_num, (p, v)))
                     response_queue.task_done() # Signal a thread that its data is processed
                 except:
