@@ -145,13 +145,15 @@ def mcts(root: Node,
 
         backprop(cur, value)
 
-    visits = torch.tensor([c.visits for c in root.children]).to(torch.float32)
-
-    sampling = torch.softmax(visits, dim=0)
-
     if sample_best_move:
+        sampling = torch.tensor([c.visits for c in root.children]).to(torch.float32)
+
+        sampling = (sampling - sampling.mean()) / (torch.std(sampling, correction=0) + 1e-6)
+        sampling = torch.softmax(sampling, dim=0)
+
         idx = torch.multinomial(sampling, num_samples=1).item()
         best_action = root.children[idx].action
+  
     else:
         # Find which action leads to the best immediate child
         best_action, highest_visits = "", 0
