@@ -36,7 +36,9 @@ class Chess:
         en_passant=None,
         ply_count=0,
         half_move_count=0,
-        turn=1
+        turn=1,
+        seen_states={},
+        threefold_repetition=False,
     ):
         self.bitboards = bitboards
         self.piece_lookup = piece_lookup
@@ -79,6 +81,9 @@ class Chess:
 
         self.legal_move_cache = None
         self.promotion_move_cache = None
+
+        self.seen_states = seen_states
+        self.threefold_repetition = threefold_repetition
 
     def fen(self):
         fen_string = ""
@@ -127,7 +132,7 @@ class Chess:
         if self.legal_move_cache is None:
             self.legal_moves()
 
-        if self.ply_count_without_adv > 100 or self.insufficient_material():
+        if self.ply_count_without_adv > 100 or self.insufficient_material() or self.threefold_repetition:
             return 0
 
         if not self.has_legal_moves:
@@ -276,6 +281,17 @@ class Chess:
         else:
             self.reset_en_passant()
         self.turn = enemy_turn
+
+        # Check for repetition
+        repetition_check_state = (*tuple(self.bitboards.flatten().tolist()), *tuple(self.castling_rights.flatten().tolist()), *tuple(self.en_passant.tolist()))
+
+        if (repetition_check_state in self.seen_states):
+            self.seen_states[repetition_check_state] += 1
+            if self.seen_states[repetition_check_state] >= 3: # This state has been reached 3 times in this game, so by threefold repetition its a draw
+                self.threefold_repetition = True
+
+        else:
+            self.seen_states[repetition_check_state] = 0
 
         # Empty the cache after making a move
         self.legal_move_cache = None
@@ -688,4 +704,4 @@ class Chess:
             self.PROMOTION_MASKS,
             self.castling_rights.copy(),
             self.has_en_passant, self.en_passant.copy(),
-            self.ply_count_without_adv, self.half_move_count, self.turn)
+            self.ply_count_without_adv, self.half_move_count, self.turn, self.seen_states.copy(), self.threefold_repetition)
