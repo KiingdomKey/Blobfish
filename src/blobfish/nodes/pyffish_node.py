@@ -6,6 +6,7 @@ class PyffishNode(Node):
     def __init__(self,
                  state: str,
                  game: str,
+                 board_size: int = 5,
                  **kwargs):
         """
         Args:
@@ -15,6 +16,9 @@ class PyffishNode(Node):
         super().__init__(**kwargs)
         self.state = state
         self.game = game
+        if game == "gardner":
+            board_size = 5
+        self.board_size = board_size
 
     def copy(self) -> Node:
         c = PyffishNode(
@@ -31,7 +35,6 @@ class PyffishNode(Node):
             result = result if self.white_to_move else -result
         elif pf.is_optional_game_end(self.game, self.state, [])[0]:
             result = 0
-
 
 
         return result if result is not None else None
