@@ -10,3 +10,6 @@ blobfish-env/
 
 # Benchmark output
 blobfish_bench.png
+
+checkpoints/
+results/
