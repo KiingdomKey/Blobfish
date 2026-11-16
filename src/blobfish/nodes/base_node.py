@@ -4,9 +4,11 @@ import torch
 
 from move_mapping import move_to_index, legal_mask
 
+from numba import jit
 
 
 
+@jit(nogil=True)
 def UCB(T_child: float,
         c: float,
         n_parent: int,
@@ -29,6 +31,7 @@ def UCB(T_child: float,
     else:
         return (T_child / n_child) + c * np.sqrt(np.log(n_parent) / n_child) 
 
+@jit(nogil=True)
 def PUCT(T_child: float,
          c: float,
          n_parent: int,
@@ -54,6 +57,7 @@ def PUCT(T_child: float,
         Q = (T_child / n_child)
 
     return Q + c * p * np.sqrt(n_parent) / (1 + n_child) 
+
 
 
 class Node:
@@ -136,6 +140,27 @@ class Node:
         lines.append("  " + " ".join("abcdefgh"[:size]))
         return "\n".join(lines)
 
+    def pretty_print(self):
+        board_str = str(self)
+        rows = board_str.split("\n")
+
+        WHITE = "\033[91m"
+        BLACK = "\033[30m"
+        END = "\033[0m"
+
+        for row in rows:
+            for c in row.split(" "):
+                if c.isupper():
+                    color = WHITE
+                elif c.islower() and row[0].isdigit():
+                    color = BLACK
+                else:
+                    color = ""
+                print(f"{color}{c}{END if not color == "" else ""} ", end="")
+            print()
+                    
+
+
     def get_legal_move_mask(self):
         legal_moves = [c.action for c in self.children]
         mask = legal_mask(legal_moves=legal_moves, size=self.board_size, black_to_move=not self.white_to_move)
@@ -154,7 +179,7 @@ class Node:
 
         for child in self.children:
             idx = move_to_index(child.action, self.board_size, black_to_move=not self.white_to_move)
-            child.prior_from_parent = priors[idx]
+            child.prior_from_parent = priors[idx].item()
 
     def get_child(self, action: str) -> Node | None:
 
