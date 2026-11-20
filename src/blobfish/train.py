@@ -169,9 +169,10 @@ if __name__ == "__main__":
     print(f"Batching: {args.batching}")
 
     i = 0
-    while os.path.isdir(f"./{args.log_dir}/{i}"):
+    run_folder_name = f"run_"
+    while os.path.isdir(f"./{args.log_dir}/{run_folder_name}{i}"):
         i += 1
-    run_folder_name = f"run_{i}"
+    run_folder_name += str(i)
 
     os.makedirs(f"./{args.log_dir}/{run_folder_name}")
     os.makedirs(f"./{args.weights_save_dir}/{run_folder_name}")
