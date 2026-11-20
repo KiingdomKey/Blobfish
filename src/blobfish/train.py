@@ -154,7 +154,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("--buffer-size", type=int, default=32768)
     arg_parser.add_argument("--checkpoint-every-n-runs", type=int, default=10, help="set to 0 to disable")
     arg_parser.add_argument("--batch-size", type=int, default=16)
-    arg_parser.add_argument("--weights-save-dir", type=str, default="./weights")
+    arg_parser.add_argument("--weights-save-dir", type=str, default="./checkpoints")
     arg_parser.add_argument("--log-dir", type=str, default="./logs")
     arg_parser.add_argument("--no-sample", dest="sample", action="store_false", help="disable move sampling for mcts", default=True)
     arg_parser.add_argument("--no-save", dest="save", action="store_false", help="also append the results to results/benchmark.csv", default=True)
@@ -225,8 +225,7 @@ if __name__ == "__main__":
 
 
         if logger is not None:
-            metrics = {"run": i, 
-                        "loss": np.mean(losses), 
+            metrics = { "loss": np.mean(losses), 
                         "policy_loss": np.mean(policy_losses),
                         "value_loss": np.mean(value_losses),
                         "num_non_draws": non_draws,
