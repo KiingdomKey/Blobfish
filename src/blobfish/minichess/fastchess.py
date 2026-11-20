@@ -283,15 +283,16 @@ class Chess:
         self.turn = enemy_turn
 
         # Check for repetition
-        repetition_check_state = (*tuple(self.bitboards.flatten().tolist()), *tuple(self.castling_rights.flatten().tolist()), *tuple(self.en_passant.tolist()))
-
+        #repetition_check_state = (*tuple(self.bitboards.flatten().tolist()), *tuple(self.castling_rights.flatten().tolist()), *tuple(self.en_passant.tolist()))
+        repetition_check_state = self.fen().split()
+        repetition_check_state = " ".join(repetition_check_state[:-2])
         if (repetition_check_state in self.seen_states):
             self.seen_states[repetition_check_state] += 1
             if self.seen_states[repetition_check_state] >= 3: # This state has been reached 3 times in this game, so by threefold repetition its a draw
                 self.threefold_repetition = True
 
         else:
-            self.seen_states[repetition_check_state] = 0
+            self.seen_states[repetition_check_state] = 1
 
         # Empty the cache after making a move
         self.legal_move_cache = None
