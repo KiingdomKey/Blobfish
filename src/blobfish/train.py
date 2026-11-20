@@ -78,6 +78,10 @@ def play_train_game(root_node: Node,
             idx = move_to_index(action, cur.board_size, black_to_move=not cur.white_to_move)
             move_visits[idx] = visit_count
 
+        # Normalize move_visits
+        move_visits = move_visits / (move_visits.sum())
+
+
         priors_list.append(move_visits)
         visited_states.append(encode(cur.fen()))
         move_mask_list.append(torch.tensor(cur.get_legal_move_mask())) # Network needs the move mask so we know what moves to ignore
@@ -154,7 +158,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("--buffer-size", type=int, default=32768)
     arg_parser.add_argument("--checkpoint-every-n-runs", type=int, default=10, help="set to 0 to disable")
     arg_parser.add_argument("--batch-size", type=int, default=16)
-    arg_parser.add_argument("--weights-save-dir", type=str, default="./checkpoints")
+    arg_parser.add_argument("--checkpoint-save-dir", type=str, default="./checkpoints")
     arg_parser.add_argument("--log-dir", type=str, default="./logs")
     arg_parser.add_argument("--no-sample", dest="sample", action="store_false", help="disable move sampling for mcts", default=True)
     arg_parser.add_argument("--no-save", dest="save", action="store_false", help="also append the results to results/benchmark.csv", default=True)
@@ -174,8 +178,12 @@ if __name__ == "__main__":
         i += 1
     run_folder_name += str(i)
 
+    print("Writing to:")
+    print(f"-{args.log_dir}/{run_folder_name}")
+    print(f"-{args.checkpoint_save_dir}/{run_folder_name}")
+
     os.makedirs(f"./{args.log_dir}/{run_folder_name}")
-    os.makedirs(f"./{args.weights_save_dir}/{run_folder_name}")
+    os.makedirs(f"./{args.checkpoint_save_dir}/{run_folder_name}")
 
 
     buffer = TensorDictReplayBuffer(
@@ -235,7 +243,7 @@ if __name__ == "__main__":
             logger.save()
 
         if args.checkpoint_every_n_runs > 0 and i % args.checkpoint_every_n_runs == 0:
-            torch.save(model.state_dict(), f"./{args.weights_save_dir}/{run_folder_name}/{args.blocks}_{args.channels}_{i}.pt")
+            torch.save(model.state_dict(), f"./{args.checkpoint_save_dir}/{run_folder_name}/{args.blocks}_{args.channels}_{i}.pt")
 
 
 
