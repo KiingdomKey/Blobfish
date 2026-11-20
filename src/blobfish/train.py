@@ -4,11 +4,14 @@ import lightning.pytorch as pl
 from torchrl.data import ReplayBuffer, LazyTensorStorage, TensorDictReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from tensordict import TensorDict
+import tqdm
 
 import numpy as np
 
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import argparse
+from dataclasses import dataclass
 
 from mcts import mcts, process_batch_loop
 
@@ -17,33 +20,21 @@ from nodes.python_chess_node import PythonChessNode
 
 from networks.resnet import ResNet
 
-
 from encoding import encode, policy_size
-
 from move_mapping import move_to_index
 
+from network_player import load_network
+from networks import NETWORKS
+
 import sys
-import time
+import os
+
+BUFFER_LOCK = threading.Lock()
 
 
-NUM_THREADS = 16
-BATCHING = False
-BATCH_SIZE = 16
-RUNS = 100
-NUM_MONTE_CARLO_SIMS=50
 
 INPUT_SHAPE = (18, 5, 5)
 OUTPUT_SHAPE = (policy_size(5),)
-
-TEMP_OUTPUT_SHAPE = (NUM_THREADS, 18, 5, 5)
-
-print(f"GIL enabled: {sys._is_gil_enabled()}")
-print(f"Running {NUM_THREADS} threads")
-print(f"Batching: {BATCHING}")
-
-
-
-BUFFER_LOCK = threading.Lock()
 
 
 
@@ -52,7 +43,8 @@ def play_train_game(root_node: Node,
                     num_simulations: int = 500,
                     thread_num: int = None,
                     buffer: ReplayBuffer = None,
-                    batching: bool = False) -> None:
+                    batching: bool = False,
+                    sample_best_move: bool = True) -> None:
     """
     Plays a full game until a terminal state is reached. Uses MCTS at each move
     Args:
@@ -62,7 +54,8 @@ def play_train_game(root_node: Node,
         thread_num:         Thread id 
         buffer:             The replay buffer that gets added to after every turn
         batching:           Whether or not this thread should batch network forward operations
-
+        sample
+        sample_best_move:   Should MCTS pick its return move based on the distribution of visits or just return the most visited node's move
     """
 
     cur = root_node
@@ -75,7 +68,9 @@ def play_train_game(root_node: Node,
                                                              value_func=value_func,
                                                              num_runs=num_simulations,
                                                              thread_num=thread_num,
-                                                             batching=batching)
+                                                             batching=batching,
+                                                             sample_best_move=sample_best_move)
+
         # For the network to train, we give it in priors in the form of how many times MCTS visited that move
         # e.g.: if we had 4 moves, we visited the 2nd one twice and the 4th one once, then it would be [0, 2, 0, 1]
         move_visits = torch.zeros_like(priors)
@@ -91,8 +86,8 @@ def play_train_game(root_node: Node,
         cur.parent = None # We don't care about the parent anymore, so we set it to None so MCTS doesn't waste time doing backprop on it
 
     states = torch.stack(visited_states)
-
     value = cur.is_terminal()
+
     if not root.white_to_move: # the terminal value is always from white's perspective, so flip it if playing black (white winning is bad for black)
         value *= -1
 
@@ -104,7 +99,6 @@ def play_train_game(root_node: Node,
     masks = torch.stack(move_mask_list)
 
     for state, value, priors, mask in zip(states, values, priors, masks):
-
         data = TensorDict({
                 "state": state,
                 "policy": priors,
@@ -117,7 +111,6 @@ def play_train_game(root_node: Node,
                 buffer.add(data)
             except:
                 print("The replay buffer broke again") # if you see this print please dig me a nice hole to bury myself in before telling me
-
     
 
 def play_n_train_games(value_func,
@@ -125,7 +118,8 @@ def play_n_train_games(value_func,
                        num_simulations: int = 500,
                        num_games: int = 32,
                        buffer: ReplayBuffer = None,
-                       batching: bool = False) -> None:
+                       batching: bool = False,
+                       sample_best_move: bool = True) -> None:
     """
     Plays N training games in parallel until all games reach a terminal state
     Args:
@@ -135,96 +129,116 @@ def play_n_train_games(value_func,
         num_games:          How many games to run at the same time
         buffer:             Replay buffer that each thread should add to
         batching:           Whether or not each thread should batch network forward operations
+        sample_best_move:   Should MCTS pick its return move based on the distribution of visits or just return the most visited node's move
     """
             
     with ThreadPoolExecutor(max_workers=num_games + 1) as executor:
 
         for i in range(num_games):
             root = root_node.copy()
-            executor.submit(play_train_game, root_node=root, num_simulations=num_simulations, buffer=buffer, thread_num=i, value_func=value_func, batching=batching)
+            executor.submit(play_train_game, root_node=root, num_simulations=num_simulations, buffer=buffer, thread_num=i, value_func=value_func, batching=batching, sample_best_move=sample_best_move)
 
-        executor.submit(process_batch_loop, value_func)
-
-
+        executor.submit(process_batch_loop, value_func, initial_threads=num_games)
 
     
 
 if __name__ == "__main__":
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("--checkpoint", default=None, help="trained network to load, leave off for the untrained baseline")
+    arg_parser.add_argument("--arch", default="resnet", choices=list(NETWORKS))
+    arg_parser.add_argument("--channels", type=int, default=64)
+    arg_parser.add_argument("--blocks", type=int, default=6)
+    arg_parser.add_argument("--num-runs", type=int, default=100)
+    arg_parser.add_argument("--games-per-run", type=int, default=16)
+    arg_parser.add_argument("--mcts-sims", type=int, default=100)
+    arg_parser.add_argument("--buffer-size", type=int, default=32768)
+    arg_parser.add_argument("--checkpoint-every-n-runs", type=int, default=10, help="set to 0 to disable")
+    arg_parser.add_argument("--batch-size", type=int, default=16)
+    arg_parser.add_argument("--weights-save-dir", type=str, default="./weights")
+    arg_parser.add_argument("--log-dir", type=str, default="./logs")
+    arg_parser.add_argument("--no-sample", dest="sample", action="store_false", help="disable move sampling for mcts", default=True)
+    arg_parser.add_argument("--no-save", dest="save", action="store_false", help="also append the results to results/benchmark.csv", default=True)
+    arg_parser.add_argument("--no-multithreading", dest="multithreading", action="store_false",  default=True)
+    arg_parser.add_argument("--no-benchmark", dest="benchmark", action="store_false", default=True)
+    arg_parser.add_argument("--batching", dest="batching", action="store_false", default=False)
+
+    args = arg_parser.parse_args()
+
+    print(f"GIL enabled: {sys._is_gil_enabled()}")
+    print(f"Running {args.games_per_run} threads")
+    print(f"Batching: {args.batching}")
+
+    i = 0
+    while os.path.isdir(f"./{args.log_dir}/{i}"):
+        i += 1
+    run_folder_name = f"run_{i}"
+
+    os.makedirs(f"./{args.log_dir}/{run_folder_name}")
+    os.makedirs(f"./{args.weights_save_dir}/{run_folder_name}")
+
 
     buffer = TensorDictReplayBuffer(
-        storage=LazyTensorStorage(max_size=32768),
-        batch_size=BATCH_SIZE,
+        storage=LazyTensorStorage(max_size=args.buffer_size),
+        batch_size=args.batch_size,
         sampler=SamplerWithoutReplacement()
     )
 
+    root = MinichessNode(game="5x5gardner")
 
-    node = MinichessNode(game="5x5gardner")
-
-    # the following is to just get to a simplified endgame to test training
-    
-    all_moves = all_moves = "c2c3 c4c3 d2e3 d4e3 d1d5 e5d5 b2b3 a4b3 a2b3 c3c2 c1a3 b4a3 a1a3 d5e5 a3b3 e5d5 c3c4 d5c4 b3b5 c4d5 b5a5 d5e5 a5c5 e5e3 c5b5 e4d4 b5e5 d4d3 e5e3 c4b5 e3c3 b5a5 e2e3 a5b5 e3e4 b5a5 e4e5q a5a4"
-    moves = all_moves.split()
-    for move in moves:
-        node.add_successors()
-        idx = -1
-        for i in range(len(node.children)):
-            if node.children[i].action == move:
-                idx = i
-        node = node.children[idx]
-    
-    
-    
-
-    root = node
-    print(root.white_to_move)
-    print(root)
-
-    model = ResNet(input_shape=INPUT_SHAPE, output_shape=OUTPUT_SHAPE, policy_loss="advantage")
-
+    model = load_network()
     optimizer = model.configure_optimizers()
-    
-    start_time = time.time()
 
-    for i in range(RUNS):
+    logger = pl.loggers.CSVLogger(save_dir=args.log_dir, name=run_folder_name) if args.benchmark else None
+
+    for i in tqdm.tqdm(range(1, args.num_runs + 1)):
 
         play_n_train_games(value_func=model.evaluate,
                            root_node=root,
                            buffer=buffer,
-                           num_simulations=NUM_MONTE_CARLO_SIMS,
-                           num_games=NUM_THREADS,
-                           batching=BATCHING)
-
-        successes = 0
-        fails = 0
+                           num_simulations=args.mcts_sims,
+                           num_games=args.games_per_run,
+                           batching=args.batching)
+        non_draws = 0
         draws = 0
+
+        losses = []
+        policy_losses = []
+        value_losses = []
+
 
         for _, batch in enumerate(buffer):
 
             y = batch["value"]
-            successes += (y == 1).sum()
-            fails += (y == -1).sum()
+            non_draws += (y == 1).sum() + (y == -1).sum() 
             draws += (y.shape[0] - (y == 1).sum() - (y == -1).sum())
 
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             loss, policy_loss, value_loss = model.compute_loss(batch)
+
+            losses.append(loss.item())
+            policy_losses.append(policy_loss.item())
+            value_losses.append(value_loss.item())
   
             loss.backward()
             optimizer.step()
 
-        print(f"S: {successes}")
-        print(f"F: {fails}")
-        print(f"D: {draws}")
+
+        if logger is not None:
+            metrics = {"run": i, 
+                        "loss": np.mean(losses), 
+                        "policy_loss": np.mean(policy_losses),
+                        "value_loss": np.mean(value_losses),
+                        "num_non_draws": non_draws,
+                        "num_draws": draws}
+
+            logger.log_metrics(metrics, step=i)
+            logger.save()
+
+        if args.checkpoint_every_n_runs > 0 and i % args.checkpoint_every_n_runs == 0:
+            torch.save(model.state_dict(), f"./{args.weights_save_dir}/{run_folder_name}/{args.blocks}_{args.channels}_{i}.pt")
 
 
-        print(f"Run {i} done")
 
-
-
-
-
-    print(f"Time taken: {time.time() - start_time}")
-
-    torch.save(model.state_dict(), "temp.pt")
 
 
 
