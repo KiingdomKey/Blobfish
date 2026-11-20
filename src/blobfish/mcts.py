@@ -207,7 +207,7 @@ def get_value_batching(thread_num: int, cur: Node) -> float:
 
 
 # Runs in a loop waiting to process a full batch
-def process_batch_loop(value_func: Callable) -> None:
+def process_batch_loop(value_func: Callable, initial_threads: int) -> None:
     """
     Loop that takes care of running forward pass batches on the network.
     Args:
@@ -224,7 +224,8 @@ def process_batch_loop(value_func: Callable) -> None:
     mask_list = []
     response_queue_list = []
 
-    while get_active_workers() > 0:
+    extra_threads = get_active_workers() - initial_threads
+    while get_active_workers() - extra_threads > 0:
 
         process_batch = False
 
@@ -283,7 +284,6 @@ def process_batch_loop(value_func: Callable) -> None:
             data_list = []
             mask_list = []
             response_queue_list = []
-
 
             
 
