@@ -164,7 +164,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("--no-save", dest="save", action="store_false", help="also append the results to results/benchmark.csv", default=True)
     arg_parser.add_argument("--no-multithreading", dest="multithreading", action="store_false",  default=True)
     arg_parser.add_argument("--no-benchmark", dest="benchmark", action="store_false", default=True)
-    arg_parser.add_argument("--batching", dest="batching", action="store_false", default=False)
+    arg_parser.add_argument("--batching", dest="batching", action="store_true", default=False)
 
     args = arg_parser.parse_args()
 
@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
     root = MinichessNode(game="5x5gardner")
 
-    model = load_network()
+    model = load_network(checkpoint=args.checkpoint, arch=args.arch, channels=args.channels, blocks=args.blocks)
     optimizer = model.configure_optimizers()
 
     logger = pl.loggers.CSVLogger(save_dir=args.log_dir, name=run_folder_name) if args.benchmark else None
