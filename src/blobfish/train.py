@@ -62,6 +62,7 @@ def play_train_game(root_node: Node,
     visited_states = []
     priors_list = []
     move_mask_list = []
+    mcts_value_list = []
 
     while cur.is_terminal() is None:
         best_action, priors, action_visit_count_pairs = mcts(root=cur,
@@ -70,7 +71,6 @@ def play_train_game(root_node: Node,
                                                              thread_num=thread_num,
                                                              batching=batching,
                                                              sample_best_move=sample_best_move)
-
         # For the network to train, we give it in priors in the form of how many times MCTS visited that move
         # e.g.: if we had 4 moves, we visited the 2nd one twice and the 4th one once, then it would be [0, 2, 0, 1]
         move_visits = torch.zeros_like(priors)
@@ -86,6 +86,8 @@ def play_train_game(root_node: Node,
         visited_states.append(encode(cur.fen()))
         move_mask_list.append(torch.tensor(cur.get_legal_move_mask())) # Network needs the move mask so we know what moves to ignore
 
+        mcts_value_list.append(cur.total_value / cur.visits)
+
         cur = cur.get_child(best_action)
         cur.parent = None # We don't care about the parent anymore, so we set it to None so MCTS doesn't waste time doing backprop on it
 
@@ -96,18 +98,22 @@ def play_train_game(root_node: Node,
         value *= -1
 
     # Every move up to the end gets the value of the end of the game
-    values = np.full(states.shape[0], value)
+    values = torch.tensor(np.full(states.shape[0], value))
     values[1::2] = -value # We want to train on this game from both white and black's perspective, so we need the value of a state to match the agent's perspective for that move
+
+    mcts_values = torch.tensor(mcts_value_list)
+    mcts_values = (values + mcts_values) / 2
 
     priors = torch.stack(priors_list)
     masks = torch.stack(move_mask_list)
 
-    for state, value, priors, mask in zip(states, values, priors, masks):
+    for state, value, priors, mask, mcts_value in zip(states, values, priors, masks, mcts_values):
         data = TensorDict({
                 "state": state,
                 "policy": priors,
                 "mask": mask,
-                "value": value
+                "result": value,
+                "value": mcts_value
             })
         # Since multiple threads can access the buffer, we have to make sure there are no race conditions
         with BUFFER_LOCK:
@@ -217,9 +223,9 @@ if __name__ == "__main__":
 
         for _, batch in enumerate(buffer):
 
-            y = batch["value"]
-            non_draws += (y == 1).sum() + (y == -1).sum() 
-            draws += (y.shape[0] - (y == 1).sum() - (y == -1).sum())
+            result = batch["result"]
+            non_draws += (result == 1).sum() + (result == -1).sum() 
+            draws += (result.shape[0] - (result == 1).sum() - (result == -1).sum())
 
             optimizer.zero_grad(set_to_none=True)
             loss, policy_loss, value_loss = model.compute_loss(batch)
