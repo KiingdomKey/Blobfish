@@ -76,7 +76,8 @@ def mcts(root: Node,
          value_func: Callable = None,
          thread_num: int = None,
          batching=False,
-         sample_best_move: bool = True) -> tuple[str, np.array, dict[str, int]]:
+         sample_best_move: bool = True,
+         add_dirichlet_noise: bool = True) -> tuple[str, np.array, dict[str, int]]:
     """
     Performs MCTS with value estimation.
 
@@ -135,21 +136,27 @@ def mcts(root: Node,
 
                 policy_priors = policy_priors.squeeze(0)
                 value = value.item()
-                
-                cur.add_priors_to_children_and_self(policy_priors)
+            
 
             else:
 
                 policy_priors, value = get_value_batching(thread_num, cur)
-                cur.add_priors_to_children_and_self(policy_priors)
+
+            if add_dirichlet_noise:
+                add_dirichlet_noise = False # We only want to add noise the first time (at the door)
+
+                epsilon = 0.25
+                alpha = 0.3
+                noise = torch.tensor(np.random.dirichlet(np.full(policy_priors.shape, fill_value=alpha)))
+                policy_priors = (1 - epsilon) * policy_priors + epsilon * noise
+
+
+            cur.add_priors_to_children_and_self(policy_priors)
 
         backprop(cur, value)
 
     if sample_best_move:
         sampling = torch.tensor([c.visits for c in root.children]).to(torch.float32)
-
-        sampling = (sampling - sampling.mean()) / (torch.std(sampling, correction=0) + 1e-6)
-        sampling = torch.softmax(sampling, dim=0)
 
         idx = torch.multinomial(sampling, num_samples=1).item()
         best_action = root.children[idx].action
@@ -262,22 +269,20 @@ def process_batch_loop(value_func: Callable, initial_threads: int) -> None:
             process_batch = True
 
         if process_batch:
+            try:
+                batch = torch.stack(data_list)
+                masks = torch.stack(mask_list)
+                batch_output = value_func(batch, masks)
+                for i, (thread_num, response_queue) in enumerate(zip(id_list, response_queue_list)):
 
-            for i, (thread_num, response_queue) in enumerate(zip(id_list, response_queue_list)):
-                try:
+                        p = batch_output[0][i]
+                        v = batch_output[1][i].item()
 
-                    batch = torch.stack(data_list)
-                    masks = torch.stack(mask_list)
+                        response_queue.put((thread_num, (p, v)))
+                        response_queue.task_done() # Signal a thread that its data is processed
 
-                    batch_output = value_func(batch, masks)
-
-                    p = batch_output[0][i]
-                    v = batch_output[1][i].item()
-
-                    response_queue.put((thread_num, (p, v)))
-                    response_queue.task_done() # Signal a thread that its data is processed
-                except:
-                    print("oh. something went wrong with the batching.")
+            except:
+                print("oh. something went wrong with the batching.")
 
 
             id_list = []
