@@ -33,6 +33,7 @@ from nodes.python_chess_node import PythonChessNode
 from nodes.minichess_node import MinichessNode
 
 from encoding import encode
+from move_mapping import legal_mask
 
 import warnings
 
@@ -136,20 +137,18 @@ def mcts(root: Node,
 
                 policy_priors = policy_priors.squeeze(0)
                 value = value.item()
-            
-
             else:
-
                 policy_priors, value = get_value_batching(thread_num, cur)
 
-            if add_dirichlet_noise:
-                add_dirichlet_noise = False # We only want to add noise the first time (at the door)
-
+            if cur is root and add_dirichlet_noise:
                 epsilon = 0.25
                 alpha = 0.3
-                noise = torch.tensor(np.random.dirichlet(np.full(policy_priors.shape, fill_value=alpha)))
-                policy_priors = (1 - epsilon) * policy_priors + epsilon * noise
 
+                mask = torch.tensor(cur.get_legal_move_mask()).to(torch.bool)
+                noise = torch.zeros_like(policy_priors, dtype=torch.float64)
+
+                noise[mask] = torch.tensor(np.random.dirichlet(np.full(policy_priors[mask].shape, fill_value=alpha)))
+                policy_priors = (1 - epsilon) * policy_priors + epsilon * noise
 
             cur.add_priors_to_children_and_self(policy_priors)
 
