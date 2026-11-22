@@ -205,6 +205,10 @@ if __name__ == "__main__":
 
     logger = pl.loggers.CSVLogger(save_dir=args.log_dir, name=run_folder_name) if args.benchmark else None
 
+    if args.checkpoint_every_n_runs > 0:
+        trainer = pl.Trainer()
+        trainer.strategy.connect(model)
+
     for i in tqdm.tqdm(range(1, args.num_runs + 1)):
 
         play_n_train_games(value_func=model.evaluate,
@@ -249,7 +253,7 @@ if __name__ == "__main__":
             logger.save()
 
         if args.checkpoint_every_n_runs > 0 and i % args.checkpoint_every_n_runs == 0:
-            torch.save(model.state_dict(), f"./{args.checkpoint_save_dir}/{run_folder_name}/{args.blocks}_{args.channels}_{i}.pt")
+            trainer.save_checkpoint(f"./{args.checkpoint_save_dir}/{run_folder_name}/{args.blocks}_{args.channels}_{i}.ckpt", weights_only=False)
 
 
 
