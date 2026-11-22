@@ -25,8 +25,12 @@ from encoding import PLANES, encode_with_mask, policy_size
 from move_mapping import add_queen_promotion, index_to_move
 from networks import NETWORKS, make_network
 
+from mcts import mcts
+from nodes.pyffish_node import PyffishNode
+from nodes.minichess_node import MinichessNode
 
-def make_network_player(net, sample=False):
+
+def make_network_player(net, sample=False, max_mcts_sims=0):
     # gardner is the only board benchmark.py plays right now so the size is fixed at 5
     size = 5
 
@@ -59,7 +63,32 @@ def make_network_player(net, sample=False):
             raise RuntimeError(f"network picked {move} which isnt legal in {fen}, legal moves are {legal}")
         return move
 
-    return network_player
+    def network_player_mcts(moves_so_far, rng=None):
+
+        # Get the node up to the current state
+        node = MinichessNode(game=f"{size}x{size}{benchmark.GAME}")
+        for move in moves_so_far:
+            node.add_successors()
+            node = node.get_child(move)
+        node.parent = None
+
+        best_action, _, _ = mcts(root=node,
+                                 value_func=net.evaluate,
+                                 num_runs=max_mcts_sims,
+                                 sample_best_move=False)
+
+        # Check for discrepencies between pyffish and minichess
+        # Unfortunately, when they call a draw by insufficient material is different, but hopefully this shouldn't change the results too heavily
+        # (the chances of NOT drawing when one calls it but the other doesn't is incredibly small)
+        legal = sf.legal_moves(benchmark.GAME, benchmark.START, moves_so_far)
+        if best_action not in legal:
+            fen = sf.get_fen(benchmark.GAME, benchmark.START, moves_so_far)
+            print(f"network picked {move} which isnt legal in {fen}, legal moves are {legal}. Picking random move to avoid crash")
+            best_action = legal[0]
+
+        return best_action
+
+    return network_player_mcts if max_mcts_sims > 0 else network_player
 
 
 def load_network(checkpoint=None, arch="resnet", channels=64, blocks=6, seed=0):
@@ -85,11 +114,12 @@ if __name__ == "__main__":
     ap.add_argument("--games", type=int, default=100)
     ap.add_argument("--sample", action="store_true", help="sample moves instead of always playing the top one")
     ap.add_argument("--save", action="store_true", help="also append the results to results/benchmark.csv")
+    ap.add_argument("--use-mcts", action="store_true")
     args = ap.parse_args()
 
     net = load_network(args.checkpoint, args.arch, args.channels, args.blocks)
     name = "network" if args.checkpoint is None else f"network({args.checkpoint})"
-    benchmark.PLAYERS[name] = make_network_player(net, sample=args.sample)
+    benchmark.PLAYERS[name] = make_network_player(net, sample=args.sample, use_mcts=args.use_mcts)
     print(f"{name}: {args.arch}, {args.blocks} blocks x {args.channels} channels, "
           f"{'sampling' if args.sample else 'greedy'}\n")
 

@@ -91,9 +91,9 @@ def find_checkpoints(folder):
 
 # ---------- playing ----------
 
-def evaluate_one(name, net, opponents, games, sample):
+def evaluate_one(name, net, opponents, games, sample, max_mcts_sims):
     """Plays one network against each opponent. Returns a list of result dicts."""
-    benchmark.PLAYERS[name] = make_network_player(net, sample=sample)
+    benchmark.PLAYERS[name] = make_network_player(net, sample=sample, max_mcts_sims=max_mcts_sims)
     rows = []
     for opponent in opponents:
         start = time.time()
@@ -125,22 +125,24 @@ def run_evaluation(args):
     all_rows = []
 
     print("round 0 (untrained)")
-    for r in evaluate_one("round_0", untrained_network(), opponents, args.games, args.sample):
+    for r in evaluate_one("round_0", untrained_network(), opponents, args.games, args.sample, args.max_mcts_sims):
         all_rows.append({"checkpoint": "untrained", "round": 0, **r})
+
+    os.makedirs(os.path.dirname(args.csv) or ".", exist_ok=True)
 
     for path in checkpoints:
         rnd = round_number(path)
         print(f"round {rnd} ({path})")
         net = load_any(path, args.arch, args.channels, args.blocks)
-        for r in evaluate_one(f"round_{rnd}", net, opponents + [SELF_OPPONENT], args.games, args.sample):
+        for r in evaluate_one(f"round_{rnd}", net, opponents + [SELF_OPPONENT], args.games, args.sample, args.max_mcts_sims):
             all_rows.append({"checkpoint": path, "round": rnd, **r})
 
-    os.makedirs(os.path.dirname(args.csv) or ".", exist_ok=True)
-    with open(args.csv, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(all_rows)
-    print(f"\nSaved results to {args.csv}")
+        with open(args.csv, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(all_rows)
+        print(f"\nSaved results to {args.csv}\n")
+
     return True
 
 
@@ -260,6 +262,7 @@ if __name__ == "__main__":
     ap.add_argument("--arch", default="resnet", choices=list(NETWORKS))
     ap.add_argument("--channels", type=int, default=64)
     ap.add_argument("--blocks", type=int, default=6)
+    ap.add_argument("--max-mcts-sims", type=int, default=0)
     args = ap.parse_args()
 
     if args.make_test_checkpoints:
