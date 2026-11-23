@@ -28,6 +28,7 @@ from networks import NETWORKS
 
 import sys
 import os
+import random
 
 BUFFER_LOCK = threading.Lock()
 
@@ -94,7 +95,10 @@ def play_train_game(root_node: Node,
     states = torch.stack(visited_states)
     value = cur.is_terminal()
 
-    if not root.white_to_move: # the terminal value is always from white's perspective, so flip it if playing black (white winning is bad for black)
+    # the terminal value is always from white's perspective, so flip it if this game started on black's turn
+    # (white winning is bad for black). this has to be root_node, this game's own start, since with random
+    # starts a game can begin on black's move, the global root is always the normal start where white moves first
+    if not root_node.white_to_move:
         value *= -1
 
     # Every move up to the end gets the value of the end of the game
@@ -123,13 +127,50 @@ def play_train_game(root_node: Node,
                 print("The replay buffer broke again") # if you see this print please dig me a nice hole to bury myself in before telling me
     
 
+# random starts: play a few random moves from the normal start and begin the game from there instead.
+# the random moves just get us to a different board, they don't get trained on
+def random_start(root_node: Node,
+                 max_plies: int,
+                 rng: random.Random) -> Node:
+    """
+    Plays 0 to max_plies random legal moves from root_node and returns where it ends up, so self-play games
+    don't all open the exact same way
+    Args:
+        root_node:  where the random moves start from (the normal start position)
+        max_plies:  most random moves to play, each game picks a random amount from 0 up to this
+        rng:        random number generator so the moves can be repeated with a seed
+    Returns:
+        a node that isn't game over yet, ready to be the root of a training game
+    """
+
+    # if the random moves happen to end the game we just throw it out and try again
+    while True:
+        node = root_node.copy()
+        for _ in range(rng.randint(0, max_plies)):
+            # add_successors flips white_to_move on every child so the node always knows whose turn it is,
+            # and the minichess board copies its repetition history along so repeats still count
+            node.add_successors()
+            node = rng.choice(node.children)
+            if node.is_terminal() is not None:
+                break
+
+        if node.is_terminal() is None:
+            # cut it off from the throwaway tree we walked through, the random moves aren't training data
+            # since they don't have mcts visit counts to learn from, so the game's history starts here
+            node.parent = None
+            return node
+
+
 def play_n_train_games(value_func,
                        root_node: Node,
                        num_simulations: int = 500,
                        num_games: int = 32,
                        buffer: ReplayBuffer = None,
                        batching: bool = False,
-                       sample_best_move: bool = True) -> None:
+                       sample_best_move: bool = True,
+                       random_start_plies: int = 0,
+                       random_start_fraction: float = 0.5,
+                       rng: random.Random = None) -> None:
     """
     Plays N training games in parallel until all games reach a terminal state
     Args:
@@ -140,12 +181,22 @@ def play_n_train_games(value_func,
         buffer:             Replay buffer that each thread should add to
         batching:           Whether or not each thread should batch network forward operations
         sample_best_move:   Should MCTS pick its return move based on the distribution of visits or just return the most visited node's move
+        random_start_plies:     up to how many random moves to play before a game starts, 0 means every game starts from root_node
+        random_start_fraction:  how many of the games get a random start, 0.5 is about half of them
+        rng:                    random number generator for picking which games get random starts and their moves
     """
-            
+
+    if rng is None:
+        rng = random.Random()
+
     with ThreadPoolExecutor(max_workers=num_games + 1) as executor:
 
         for i in range(num_games):
-            root = root_node.copy()
+            # some games get a random start for variety, the rest start normally to keep practicing the real opening
+            if random_start_plies > 0 and rng.random() < random_start_fraction:
+                root = random_start(root_node, random_start_plies, rng)
+            else:
+                root = root_node.copy()
             executor.submit(play_train_game, root_node=root, num_simulations=num_simulations, buffer=buffer, thread_num=i, value_func=value_func, batching=batching, sample_best_move=sample_best_move)
 
         executor.submit(process_batch_loop, value_func, initial_threads=num_games)
@@ -171,12 +222,20 @@ if __name__ == "__main__":
     arg_parser.add_argument("--no-multithreading", dest="multithreading", action="store_false",  default=True)
     arg_parser.add_argument("--no-benchmark", dest="benchmark", action="store_false", default=True)
     arg_parser.add_argument("--batching", dest="batching", action="store_true", default=False)
+    arg_parser.add_argument("--random-start-plies", type=int, default=0,
+                            help="play up to this many random moves before each self-play game, 0 turns random starts off")
+    arg_parser.add_argument("--random-start-fraction", type=float, default=0.5,
+                            help="how many of each round's games get a random start, 0.5 is about half")
+    arg_parser.add_argument("--seed", type=int, default=None,
+                            help="seed for the random starts so the same starting positions come up every run, leave off for different ones each time")
 
     args = arg_parser.parse_args()
 
     print(f"GIL enabled: {sys._is_gil_enabled()}")
     print(f"Running {args.games_per_run} threads")
     print(f"Batching: {args.batching}")
+    print(f"Random starts: {f'up to {args.random_start_plies} moves for about {args.random_start_fraction:.0%} of games' if args.random_start_plies > 0 else 'off'}"
+          f"{f', seed {args.seed}' if args.seed is not None else ''}")
 
     i = 0
     run_folder_name = f"run_"
@@ -200,6 +259,11 @@ if __name__ == "__main__":
 
     root = MinichessNode(game="5x5gardner")
 
+    # one shared random number generator for picking random starts, seeding it means the same games get
+    # the same starting positions every run so we can compare settings fairly. no seed means it's different every time
+    # (this only covers the random starts, the dirichlet noise and move sampling in mcts have their own randomness)
+    rng = random.Random(args.seed)
+
     model = load_network(checkpoint=args.checkpoint, arch=args.arch, channels=args.channels, blocks=args.blocks)
     optimizer = model.configure_optimizers()
 
@@ -216,7 +280,10 @@ if __name__ == "__main__":
                            buffer=buffer,
                            num_simulations=args.mcts_sims,
                            num_games=args.games_per_run,
-                           batching=args.batching)
+                           batching=args.batching,
+                           random_start_plies=args.random_start_plies,
+                           random_start_fraction=args.random_start_fraction,
+                           rng=rng)
         non_draws = 0
         draws = 0
 
