@@ -78,17 +78,22 @@ def mcts(root: Node,
          thread_num: int = None,
          batching=False,
          sample_best_move: bool = True,
-         add_dirichlet_noise: bool = True) -> tuple[str, np.array, dict[str, int]]:
+         add_dirichlet_noise: bool = True,
+         dirichlet_alpha: float = 0.3,
+         dirichlet_epsilon: float = 0.25) -> tuple[str, np.array, dict[str, int]]:
     """
     Performs MCTS with value estimation.
 
     Args:
-        start_state:        Root position to start search at
-        num_runs:           Max number of simulations
-        value_func:         Function to call to determine the value of a non-terminal state. Return value should be a float. Input type TBD. Optional if batching
-        thread_num:         Unique number for the current thread. Optional if not batching
-        batching:           Whether or not to batch forward passes across all threads (required arguments change)
-        sample_best_move:    Should the final returned move be sampled proportional to each child's visit count, or should it just pick the child action with the highest visit count
+        start_state:            Root position to start search at
+        num_runs:               Max number of simulations
+        value_func:             Function to call to determine the value of a non-terminal state. Return value should be a float. Input type TBD. Optional if batching
+        thread_num:             Unique number for the current thread. Optional if not batching
+        batching:               Whether or not to batch forward passes across all threads (required arguments change)
+        sample_best_move:       Should the final returned move be sampled proportional to each child's visit count, or should it just pick the child action with the highest visit count
+        add_dirichlet_noise:    Whether or not to add dirichlet noise to root node priors
+        dirichlet_alpha:        Alpha value for dirichlet noise
+        dirchlet_epsilon:       How heavily should dirichlet noise be weighted at the root (1.0 = only noise, 0.0 = no noise)
     Returns:
         best_action:                The best move from the position given
         root_priors:                The priors of the root node
@@ -141,14 +146,12 @@ def mcts(root: Node,
                 policy_priors, value = get_value_batching(thread_num, cur)
 
             if cur is root and add_dirichlet_noise:
-                epsilon = 0.25
-                alpha = 0.3
 
                 mask = torch.tensor(cur.get_legal_move_mask()).to(torch.bool)
                 noise = torch.zeros_like(policy_priors, dtype=torch.float64)
 
-                noise[mask] = torch.tensor(np.random.dirichlet(np.full(policy_priors[mask].shape, fill_value=alpha)))
-                policy_priors = (1 - epsilon) * policy_priors + epsilon * noise
+                noise[mask] = torch.tensor(np.random.dirichlet(np.full(policy_priors[mask].shape, fill_value=dirichlet_alpha)))
+                policy_priors = (1 - dirichlet_epsilon) * policy_priors + dirichlet_epsilon * noise
 
             cur.add_priors_to_children_and_self(policy_priors)
 
