@@ -70,7 +70,6 @@ def make_network_player(net, sample=False, max_mcts_sims=0):
         for move in moves_so_far:
             node.add_successors()
             node = node.get_child(move)
-        node.parent = None
 
         best_action, _, _ = mcts(root=node,
                                  value_func=net.evaluate,
@@ -114,16 +113,17 @@ if __name__ == "__main__":
     ap.add_argument("--games", type=int, default=100)
     ap.add_argument("--sample", action="store_true", help="sample moves instead of always playing the top one")
     ap.add_argument("--save", action="store_true", help="also append the results to results/benchmark.csv")
-    ap.add_argument("--use-mcts", action="store_true")
+    ap.add_argument("--max-mcts-sims", type=int, default=0)
     args = ap.parse_args()
 
     net = load_network(args.checkpoint, args.arch, args.channels, args.blocks)
     name = "network" if args.checkpoint is None else f"network({args.checkpoint})"
-    benchmark.PLAYERS[name] = make_network_player(net, sample=args.sample, use_mcts=args.use_mcts)
+    benchmark.PLAYERS[name] = make_network_player(net, sample=args.sample, max_mcts_sims=args.max_mcts_sims)
     print(f"{name}: {args.arch}, {args.blocks} blocks x {args.channels} channels, "
           f"{'sampling' if args.sample else 'greedy'}\n")
 
     # bottom of the ladder first, an untrained network should land around random
+    #matchups = [(name, "random"), (name, "capture"), (name, "minimax1"), (name, "sf_d1_s0"), (name, "sf_d1"), (name, "sf_d3")]
     matchups = [(name, "random"), (name, "capture"), (name, "minimax1")]
 
     rows = []
