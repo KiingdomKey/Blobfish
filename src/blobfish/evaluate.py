@@ -36,7 +36,7 @@ BOARD_SIZE = 5
 UNTRAINED_SEED = 0
 
 # Opponents in ladder order, weakest first. Stockfish is skipped if it isn't installed.
-LADDER = ["random", "capture", "minimax1", "sf_d1_s0", "sf_d1", "sf_d3"]
+LADDER = ["random", "capture", "minimax1", "sf_d1_skill0", "sf_d1", "sf_d3"]
 # The "beats older versions of itself" line: every checkpoint also plays the untrained network.
 SELF_OPPONENT = "untrained"
 
@@ -166,7 +166,7 @@ PRETTY_NAMES = {
     "minimax1": "vs minimax (1 ply)",
     "minimax2": "vs minimax (2 ply)",
     "sf_d1_skill-20": "vs Stockfish (weakest)",
-    "sf_d1_s0": "vs Stockfish d1 Skill 0 (intermediate)",
+    "sf_d1_skill0": "vs Stockfish d1 Skill 0 (intermediate)",
     "sf_d1": "vs Stockfish d1",
     "sf_d3": "vs Stockfish d3",
     SELF_OPPONENT: "vs untrained self",

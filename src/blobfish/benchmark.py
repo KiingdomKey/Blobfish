@@ -224,6 +224,7 @@ PLAYERS = {
     "minimax2": make_minimax_player(2),
     # weakest Stockfish settings first; these are what Blobfish should try to beat
     "sf_d1_skill-20": make_stockfish_player(depth=1, skill=-20),
+    "sf_d1_skill0": make_stockfish_player(depth=1, skill=0),
     "sf_d1": make_stockfish_player(depth=1),
     "sf_d3": make_stockfish_player(depth=3),
 }
