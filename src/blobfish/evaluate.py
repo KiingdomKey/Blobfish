@@ -36,7 +36,7 @@ BOARD_SIZE = 5
 UNTRAINED_SEED = 0
 
 # Opponents in ladder order, weakest first. Stockfish is skipped if it isn't installed.
-LADDER = ["random", "capture", "minimax1", "sf_d1_skill-20"]
+LADDER = ["random", "capture", "minimax1", "sf_d1_s0", "sf_d1", "sf_d3"]
 # The "beats older versions of itself" line: every checkpoint also plays the untrained network.
 SELF_OPPONENT = "untrained"
 
@@ -120,7 +120,7 @@ def run_evaluation(args):
     # The untrained network is both round 0 and the "older self" every checkpoint plays.
     # It always samples its moves: two networks that each play their top move would
     # just replay the same game over and over.
-    benchmark.PLAYERS[SELF_OPPONENT] = make_network_player(untrained_network(), sample=True)
+    benchmark.PLAYERS[SELF_OPPONENT] = make_network_player(untrained_network(), sample=True, max_mcts_sims=args.max_mcts_sims)
 
     all_rows = []
 
@@ -156,6 +156,8 @@ LINE_STYLES = [
     ("#1baf7a", "^"),
     ("#eda100", "D"),
     ("#e87ba4", "v"),
+    ("#000000", "o"),
+    ("#8297b5", "s"),
 ]
 
 PRETTY_NAMES = {
@@ -164,7 +166,9 @@ PRETTY_NAMES = {
     "minimax1": "vs minimax (1 ply)",
     "minimax2": "vs minimax (2 ply)",
     "sf_d1_skill-20": "vs Stockfish (weakest)",
+    "sf_d1_s0": "vs Stockfish d1 Skill 0 (intermediate)",
     "sf_d1": "vs Stockfish d1",
+    "sf_d3": "vs Stockfish d3",
     SELF_OPPONENT: "vs untrained self",
 }
 
