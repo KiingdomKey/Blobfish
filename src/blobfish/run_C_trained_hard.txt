@@ -1,0 +1,13 @@
+network(6_64_470.ckpt): resnet, 6 blocks x 64 channels, greedy
+
+network(6_64_470.ckpt) vs minimax2: 39W 37D 24L  (score 0.575, avg 38.9 moves, 332s)
+   endings: {'draw rule (50 moves / repetition)': 31, 'checkmate': 63, 'stalemate': 3, 'insufficient material': 3}
+network(6_64_470.ckpt) vs sf_d1_skill-20: 100W 0D 0L  (score 1.0, avg 23.4 moves, 193s)
+   endings: {'checkmate': 100}
+network(6_64_470.ckpt) vs sf_d1_skill0: 44W 16D 40L  (score 0.52, avg 40.8 moves, 322s)
+   endings: {'checkmate': 84, 'insufficient material': 6, 'draw rule (50 moves / repetition)': 8, 'stalemate': 2}
+network(6_64_470.ckpt) vs sf_d1: 0W 12D 88L  (score 0.06, avg 52.1 moves, 405s)
+   endings: {'checkmate': 88, 'insufficient material': 10, 'stalemate': 2}
+network(6_64_470.ckpt) vs sf_d3: 0W 2D 98L  (score 0.01, avg 19.5 moves, 154s)
+   endings: {'checkmate': 98, 'stalemate': 1, 'draw rule (50 moves / repetition)': 1}
+Saved to results/benchmark.csv
