@@ -1,0 +1,13 @@
+network: resnet, 6 blocks x 64 channels, greedy
+
+network vs minimax2: 0W 4D 96L  (score 0.02, avg 28.1 moves, 238s)
+   endings: {'checkmate': 96, 'draw rule (50 moves / repetition)': 4}
+network vs sf_d1_skill-20: 46W 44D 10L  (score 0.68, avg 59.3 moves, 486s)
+   endings: {'stalemate': 25, 'checkmate': 56, 'move cap': 4, 'insufficient material': 5, 'draw rule (50 moves / repetition)': 10}
+network vs sf_d1_skill0: 1W 1D 98L  (score 0.015, avg 21.2 moves, 162s)
+   endings: {'checkmate': 99, 'stalemate': 1}
+network vs sf_d1: 0W 8D 92L  (score 0.04, avg 17.7 moves, 135s)
+   endings: {'checkmate': 92, 'stalemate': 8}
+network vs sf_d3: 0W 0D 100L  (score 0.0, avg 17.2 moves, 131s)
+   endings: {'checkmate': 100}
+Saved to results/benchmark.csv
