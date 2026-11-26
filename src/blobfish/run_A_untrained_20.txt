@@ -1,0 +1,46 @@
+network: resnet, 6 blocks x 64 channels, greedy
+
+network picked d3c1 which isnt legal in 5/3k1/1K2b/5/2N2 b - - 1 43, legal moves are ['e3c1', 'e3d2', 'd4e5', 'd4d5', 'd4c5', 'd4e4']. Picking random move to avoid crash
+network picked e2d2 which isnt legal in n3k/4B/5/3K1/5 b - - 0 39, legal moves are ['a5b3', 'a5c4', 'e5d4', 'e5e4']. Picking random move to avoid crash
+network picked d2e3 which isnt legal in 4k/4B/1n2K/5/5 b - - 2 40, legal moves are ['b3a1', 'b3c1', 'b3d2', 'b3d4', 'b3a5', 'b3c5']. Picking random move to avoid crash
+network picked e3d2 which isnt legal in 4k/4B/5/3K1/n4 b - - 4 41, legal moves are ['a1c2', 'a1b3', 'e5d4', 'e5e4']. Picking random move to avoid crash
+network picked d2c3 which isnt legal in 4k/4B/2K2/2n2/5 b - - 6 42, legal moves are ['c2a1', 'c2e1', 'c2a3', 'c2e3', 'c2b4', 'c2d4', 'e5e4']. Picking random move to avoid crash
+network picked c3c4 which isnt legal in 4k/2K1B/5/5/n4 b - - 8 43, legal moves are ['a1c2', 'a1b3', 'e5e4']. Picking random move to avoid crash
+network picked c4b3 which isnt legal in 4k/4B/1K3/2n2/5 b - - 10 44, legal moves are ['c2a1', 'c2e1', 'c2a3', 'c2e3', 'c2b4', 'c2d4', 'e5d4', 'e5e4']. Picking random move to avoid crash
+network picked b3a3 which isnt legal in 4k/4B/K4/5/n4 b - - 12 45, legal moves are ['a1c2', 'a1b3', 'e5d4', 'e5e4']. Picking random move to avoid crash
+network picked a3a2 which isnt legal in 4k/4B/5/K1n2/5 b - - 14 46, legal moves are ['c2a1', 'c2e1', 'c2a3', 'c2e3', 'c2b4', 'c2d4', 'e5d4', 'e5e4']. Picking random move to avoid crash
+network picked a2b1 which isnt legal in 4k/4B/5/5/nK3 b - - 16 47, legal moves are ['a1c2', 'a1b3', 'e5d4', 'e5e4']. Picking random move to avoid crash
+network picked e4e3 which isnt legal in 5/2K2/N3k/3b1/5 w - - 0 39, legal moves are ['a3b1', 'a3c2', 'a3b5', 'c4b3', 'c4d5', 'c4c5', 'c4b5']. Picking random move to avoid crash
+network picked e3e2 which isnt legal in 5/2K2/5/3bk/1N3 w - - 2 40, legal moves are ['b1d2', 'b1a3', 'b1c3', 'c4b3', 'c4d5', 'c4c5', 'c4b5', 'c4d4']. Picking random move to avoid crash
+network picked a1b1 which isnt legal in 4B/b1K2/5/5/1k3 w - - 1 42, legal moves are ['e5a1', 'e5b2', 'e5c3', 'e5d4', 'c4d5', 'c4c3', 'c4d3', 'c4b4', 'c4d4', 'c4c5']. Picking random move to avoid crash
+network picked a4c2 which isnt legal in 5/2K2/5/2b2/Bk3 w - - 3 43, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'c4d5', 'c4c3', 'c4c5', 'c4b4', 'c4d4', 'c4b5']. Picking random move to avoid crash
+network picked c2d3 which isnt legal in 5/2K2/3b1/1B3/1k3 w - - 5 44, legal moves are ['c4b3', 'c4c3', 'c4d3', 'c4b4', 'c4d4', 'c4d5', 'c4c5']. Picking random move to avoid crash
+network picked d3e4 which isnt legal in 5/4b/1K3/1B3/1k3 w - - 7 45, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b3c4', 'b3b4', 'b3a3', 'b3c3', 'b3a4']. Picking random move to avoid crash
+network picked e4d5 which isnt legal in 3b1/5/1K3/5/Bk3 w - - 9 46, legal moves are ['b3b4', 'b3a4', 'b3c3', 'b3a3']. Picking random move to avoid crash
+network picked b1c1 which isnt legal in 3b1/1K3/5/5/B1k2 w - - 11 47, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4c5', 'b4c3', 'b4a4', 'b4b5', 'b4a5']. Picking random move to avoid crash
+network picked c1d2 which isnt legal in 3b1/1K3/5/1B1k1/5 w - - 13 48, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4c5', 'b4b5', 'b4a4', 'b4a5']. Picking random move to avoid crash
+network picked d2e3 which isnt legal in 3b1/1K3/4k/5/B4 w - - 15 49, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4c5', 'b4c3', 'b4a4', 'b4b5', 'b4a5']. Picking random move to avoid crash
+network picked e3d2 which isnt legal in 3b1/1K3/5/1B1k1/5 w - - 17 50, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4c5', 'b4b5', 'b4a4', 'b4a5']. Picking random move to avoid crash
+network picked d5e4 which isnt legal in 5/1K2b/5/3k1/B4 w - - 19 51, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4b3', 'b4c5', 'b4a4', 'b4c4', 'b4a5', 'b4b5']. Picking random move to avoid crash
+network picked d2e3 which isnt legal in 5/1K2b/4k/1B3/5 w - - 21 52, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4b3', 'b4c3', 'b4a4', 'b4c4', 'b4a5', 'b4b5', 'b4c5']. Picking random move to avoid crash
+network picked e3d2 which isnt legal in 5/1K2b/5/3k1/B4 w - - 23 53, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4b3', 'b4c5', 'b4a4', 'b4c4', 'b4a5', 'b4b5']. Picking random move to avoid crash
+network picked d2e1 which isnt legal in 5/1K2b/5/1B3/4k w - - 25 54, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4b3', 'b4c3', 'b4a4', 'b4c4', 'b4a5', 'b4b5', 'b4c5']. Picking random move to avoid crash
+network picked e4b1 which isnt legal in 5/1K3/5/5/Bb2k w - - 27 55, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4b3', 'b4c3', 'b4a4', 'b4c4', 'b4a5', 'b4b5', 'b4c5']. Picking random move to avoid crash
+network picked b1c2 which isnt legal in 5/1K3/5/1Bb2/4k w - - 29 56, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4c5', 'b4c3', 'b4b5', 'b4c4', 'b4a5']. Picking random move to avoid crash
+network picked e1d1 which isnt legal in 5/1K3/5/2b2/B2k1 w - - 31 57, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4c5', 'b4c3', 'b4b5', 'b4c4', 'b4a5']. Picking random move to avoid crash
+network picked c2b3 which isnt legal in 5/1K3/1b3/1B3/3k1 w - - 33 58, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4b3', 'b4c3', 'b4c5', 'b4b5', 'b4a5']. Picking random move to avoid crash
+network picked d1e2 which isnt legal in 5/1K3/1b3/4k/B4 w - - 35 59, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4b3', 'b4c3', 'b4c5', 'b4b5', 'b4a5']. Picking random move to avoid crash
+network picked e2e3 which isnt legal in 5/1K3/1b2k/1B3/5 w - - 37 60, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4b3', 'b4c3', 'b4c5', 'b4b5', 'b4a5']. Picking random move to avoid crash
+network picked b3a2 which isnt legal in 5/1K3/4k/b4/B4 w - - 39 61, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4c5', 'b4c3', 'b4a4', 'b4b5', 'b4a5']. Picking random move to avoid crash
+network picked a2c4 which isnt legal in 5/1Kb2/4k/1B3/5 w - - 41 62, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4c5', 'b4c3', 'b4a4', 'b4c4', 'b4a5']. Picking random move to avoid crash
+network picked e3e2 which isnt legal in 5/1Kb2/5/4k/B4 w - - 43 63, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4c5', 'b4c3', 'b4a4', 'b4c4', 'b4a5']. Picking random move to avoid crash
+network picked c4d3 which isnt legal in 5/1K3/3b1/1B2k/5 w - - 45 64, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4b3', 'b4c3', 'b4a4', 'b4c5', 'b4a5']. Picking random move to avoid crash
+network picked e2e1 which isnt legal in 5/1K3/3b1/5/B3k w - - 47 65, legal moves are ['a1b2', 'a1c3', 'a1d4', 'a1e5', 'b4a3', 'b4b3', 'b4c3', 'b4a4', 'b4c5', 'b4a5']. Picking random move to avoid crash
+network picked d3e4 which isnt legal in 5/1K2b/5/1B3/4k w - - 49 66, legal moves are ['b2a1', 'b2c1', 'b2a3', 'b2c3', 'b2d4', 'b2e5', 'b4a3', 'b4b3', 'b4c3', 'b4a4', 'b4c4', 'b4a5', 'b4b5', 'b4c5']. Picking random move to avoid crash
+network vs random: 51W 42D 7L  (score 0.72, avg 62.5 moves, 189s)
+   endings: {'checkmate': 58, 'insufficient material': 35, 'stalemate': 4, 'move cap': 1, 'draw rule (50 moves / repetition)': 2}
+network vs capture: 9W 74D 17L  (score 0.46, avg 51.3 moves, 203s)
+   endings: {'insufficient material': 27, 'checkmate': 26, 'stalemate': 44, 'draw rule (50 moves / repetition)': 3}
+network vs minimax1: 2W 15D 83L  (score 0.095, avg 32.0 moves, 83s)
+   endings: {'checkmate': 85, 'insufficient material': 12, 'draw rule (50 moves / repetition)': 2, 'stalemate': 1}
+Saved to results/benchmark.csv
