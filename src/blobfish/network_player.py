@@ -114,7 +114,11 @@ if __name__ == "__main__":
     ap.add_argument("--sample", action="store_true", help="sample moves instead of always playing the top one")
     ap.add_argument("--save", action="store_true", help="also append the results to results/benchmark.csv")
     ap.add_argument("--max-mcts-sims", type=int, default=0)
+    # which ladder opponents to play, names from benchmark.PLAYERS. defaults to the bottom of the ladder
+    ap.add_argument("--opponents", nargs="+", default=["random", "capture", "minimax1"],
+        help="e.g. --opponents minimax2 sf_d1_skill-20 sf_d1_skill0 sf_d1 sf_d3")
     args = ap.parse_args()
+
 
     net = load_network(args.checkpoint, args.arch, args.channels, args.blocks)
     name = "network" if args.checkpoint is None else f"network({args.checkpoint})"
@@ -122,9 +126,12 @@ if __name__ == "__main__":
     print(f"{name}: {args.arch}, {args.blocks} blocks x {args.channels} channels, "
           f"{'sampling' if args.sample else 'greedy'}\n")
 
-    # bottom of the ladder first, an untrained network should land around random
-    #matchups = [(name, "random"), (name, "capture"), (name, "minimax1"), (name, "sf_d1_s0"), (name, "sf_d1"), (name, "sf_d3")]
-    matchups = [(name, "random"), (name, "capture"), (name, "minimax1")]
+    # play each opponent picked with --opponents (bottom of the ladder by default)
+    for opponent in args.opponents:
+        if opponent not in benchmark.PLAYERS:
+            raise SystemExit(f"unknown opponent {opponent}, pick from: {', '.join(benchmark.PLAYERS)}")
+    matchups = [(name, opponent) for opponent in args.opponents]
+
 
     rows = []
     for a, b in matchups:
