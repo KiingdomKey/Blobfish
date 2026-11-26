@@ -16,6 +16,7 @@ run from src/blobfish:
 
 import argparse
 import time
+import random
 
 import pyffish as sf
 import torch
