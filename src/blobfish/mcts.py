@@ -104,7 +104,7 @@ def mcts(root: Node,
 
     assert (batching and thread_num is not None) or value_func is not None, "Invalid combination of parameters."
 
-    for _ in range(num_runs):
+    while root.visits < num_runs:
 
         cur = root
 
